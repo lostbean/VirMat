@@ -75,18 +75,32 @@ data RandomSeed =
 
 -- >>>>>>>>>>>>>>>>>>>>>>>>  HELP  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 help = "\nVirMat help!\n\
-\Usage: <distribution type> <distribution parameters> <outpu file>\n\
+\Usage: <distribution type> <distribution parameters> <outpu file> <shozOutput>\n\
 \    distribution type:\n\
-\        \"-simple\": number of grains, grain size, variance*, anisotropy shape.\n\
+\        \"-voronoi\": \n\
 \    \n\
 \    distribution parameters:\n\
+\        generqtor type: \"full\", \"inbox\", \"onion\" \n\
 \        \"n=\": numbers of grains (upper limit)\n\
 \        \"vol=\", \"radius=\" or \"diameter=\": grain size average\n\
 \            \"s2=\": square variance; default = 1.0\n\
 \        \"shape=\": anisotropy shape relation. Use \"shape=a:b:c\".\n\
 \    \n\
 \    output file:\n\
-\        \"-o filename\" \n\
+\        \"-o <outputInfo> filename\" \n\
+\            outputinfo:\n\ 
+\                \"v\" -> Volume\n\
+\                \"a\" -> Area\n\
+\                \"n\" -> Number of Grains\n\
+\    \n\
+\    showOutput:\n\
+\        \"showall\" <showtype>\n\
+\             showtype:\n\
+\                 \"v\" - VoronoiGrain3D\n\
+\                 \"b\" - Box3D\n\
+\                 \"h\" - Hull3D\n\
+\                 \"p\" - Points3D\n\
+\                 \"s\" - Simplex3D\n\
 \ "
 ----------------------------------------------------------------------------------"
 
