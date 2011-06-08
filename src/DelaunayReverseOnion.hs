@@ -15,7 +15,7 @@ Simplex(circumSphereCenter,setSimplexPointer),
 SimplexPointer(..),
 SetSimplexPoint,
 Face,
-DeWallSets(sigmas, setPoint),
+DeWallSets(setPoint),
 faceRef,
 Box(xMax,xMin,yMax,yMin,zMax,zMin,Box),
 getBox,
@@ -28,11 +28,12 @@ import Data.Vec hiding (map, length, fromList, fold, get)
 import Data.List (map, foldl', filter, head, (\\))
 import Data.Array.IArray (Array, Ix, (!))
 import Data.Set ( Set, deleteFindMax, member, empty, null
-                , delete, insert, fromList, fold, elems )
+                , delete, insert, fromList, fold, elems, union )
 import Data.Maybe
 import Monad (liftM, liftM2, foldM)
 import Data.IORef
 import Control.Monad.State
+import Control.Parallel
 import Data.Random
 import Data.Random.RVar
 import System.Random.Mersenne.Pure64
@@ -97,7 +98,6 @@ instance Eq Face where
 -- | Group the data that must be update along the computation (State).
 --   Use of state monad will make it clear and keep the purity of the code.
 data DeWallSets = DeWallSets { aflAlpha, aflBox1, aflBox2::SetSimplexFace
-                             , sigmas::[Simplex]
                              , setPoint::SetSimplexPoint } deriving (Show)
 
 type DeWallState = State DeWallSets
@@ -146,34 +146,51 @@ onlySimpleInBox::Box -> [Simplex] -> [Simplex]
 onlySimpleInBox box ls = filter ((isInBox box).circumSphereCenter) ls
 
 initDeWallState setPoint = DeWallSets { aflAlpha=empty, aflBox1=empty
-                                      , aflBox2=empty, sigmas=[], setPoint }
+                                      , aflBox2=empty, setPoint }
 
-deWall::[SimplexPointer] -> SetSimplexFace -> Box -> DeWallState ()
+mergeState::DeWallSets -> DeWallSets -> DeWallSets
+mergeState s1 s2 = DeWallSets { aflAlpha = uniState aflAlpha s1 s2 , aflBox1 = uniState aflBox1 s1 s2, aflBox2 = uniState aflBox2 s1 s2, setPoint = setPoint s1}
+    where uniState f s1 s2 = (f s1) `union` (f s2)
+
+deWall::[SimplexPointer] -> SetSimplexFace -> Box -> DeWallState [Simplex]
 deWall p afl box = do
     cleanAFLs
     (p1, p2) <- getNewHalfSpaces p
-    if null afl
+    if (null afl)
         then do
-            getAFL p1 p2 plane >>= \afl -> deWall p afl box
+            (sig, afl) <- getAFL p1 p2 plane
+            s <- deWall p afl box
+            return (s ++ sig)
         else do
             mapM_ (splitAF (box1, box2)) (elems afl)
-            getSigma p (box1,box2)
-            get >>= recursion p1 p2
+            sigma <- getSigma p (box1,box2)
+            get >>= recursion p1 p2 sigma
     where
-        (plane, box1, box2) = debug ("Box: " ++ show box ++ " =>") $ genPlane box
+        (plane, box1, box2) = genPlane box
         getNewHalfSpaces p = get >>= \x -> return $ pointSetPartition (box1, box2) (setPoint x) p
         cleanAFLs = modify (\x -> x { aflAlpha=empty, aflBox1=empty, aflBox2=empty })
-        recursion p1 p2 deWallSet
-            | null afl1 && null afl2 = return ()
-            | (null) afl1 = deWall p2 afl2 box2
-            | (null) afl2 = deWall p1 afl1 box1
-            | otherwise   = deWall p1 afl1 box1 >> deWall p2 afl2 box2
+        recursion p1 p2 sigma deWallSet
+            | null afl1 && null afl2 = return sigma
+            | (null) afl1 = do
+                s <- deWall p2 afl2 box2
+                return (s ++ sigma)
+            | (null) afl2 = do
+                s <- deWall p1 afl1 box1
+                return (s ++ sigma)
+            | otherwise   = do
+                            x <- get
+                            -- The state is independant and can discarted as it will be
+                            -- ereased at the bigein of the next recursive func call
+                            let !s1 = evalState (deWall p1 afl1 box1) x
+                            let !s2 = evalState (deWall p2 afl2 box2) x
+                            return $ (s1 ++ s2 ++ sigma) --s1 `par` (s2 `pseq` (s1 ++ s2 ++ sigma))
             where   afl1 = aflBox1 deWallSet
                     afl2 = aflBox2 deWallSet
 
---WORKING
+
+
 -- Simplex Wall Construction
-getSigma::[SimplexPointer] -> (Box,Box) -> DeWallState ()
+getSigma::[SimplexPointer] -> (Box,Box) -> DeWallState [Simplex]
 getSigma p pairBox = do
     f <- extractFace
     t <- getSimplex p f
@@ -187,28 +204,22 @@ getSigma p pairBox = do
             put x {aflAlpha = b}
             return a
         recursion t f   = get >>= \x -> if (null.aflAlpha) x
-            then return ()
+            then return []
             else case t of
                     Just sig -> do
                         getFaces f sig >>= (mapM_ (splitAF pairBox)).elems
-                        addSigma sig
-                        getSigma p pairBox
+                        s <- getSigma p pairBox
+                        return (sig:s)
                     _ -> getSigma p pairBox
 
-addSigma::Simplex -> DeWallState ()
-addSigma sig = get >>= \x -> put x { sigmas = sig:(sigmas x) }
 
 
---WORKING
-getAFL ::[SimplexPointer] -> [SimplexPointer] -> Plane -> DeWallState SetSimplexFace
+getAFL ::[SimplexPointer] -> [SimplexPointer] -> Plane -> DeWallState ([Simplex], SetSimplexFace)
 getAFL p1 p2 plane = get >>= \x ->
-    case t x of
+    case makeFirstSimplex (setPoint x) plane p1 p2 (p1 ++ p2) of
         Just sig -> do
-            addSigma sig
-            get >>= \x -> return $ extractAllFaces (setPoint x) sig
-        _ -> return empty
-        -- TODO remove concat list
-        where t x = makeFirstSimplex (setPoint x) plane p1 p2 (p1 ++ p2)
+            get >>= \x -> return ([sig], extractAllFaces (setPoint x) sig)
+        _ -> return ([], empty)
 
 
 splitAF ::(Box, Box) -> Face -> DeWallState ()

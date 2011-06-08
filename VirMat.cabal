@@ -6,11 +6,11 @@ license: AllRightsReserved
 license-file: ""
 copyright:
 maintainer: Edgar Gomes
-build-depends: vector -any, uvector -any, unix -any,
-               statistics -any, random-fu -any, parsec >=3, mtl -any,
-               monad-loops -any, mersenne-random-pure64 -any,
-               mersenne-random -any, haskell98 -any, containers -any, base -any,
-               array -any, Vec -any, OpenGL -any, GLUT -any
+build-depends: GLUT -any, OpenGL -any, Vec -any, array -any,
+               base -any, containers -any, haskell98 -any, mersenne-random -any,
+               mersenne-random-pure64 -any, monad-loops -any, mtl -any,
+               parallel -any, parsec >=3, random-fu -any, statistics -any,
+               unix -any, uvector -any, vector -any
 stability: dev
 homepage:
 package-url:
@@ -42,12 +42,11 @@ includes:
 install-includes:
 include-dirs:
 hs-source-dirs: ./src
-other-modules: DelaunayReverseOnion CommandLineInput
-               GrainDistributionGenerator GrainQuery ShowData Viewer3D
-               VoronoiCreator
+other-modules: Viewer3D CommandLineInput DelaunayReverseOnion
+               VoronoiCreator ShowData GrainDistributionGenerator GrainQuery
 ghc-prof-options:
 ghc-shared-options:
-ghc-options:
+ghc-options: -threaded -eventlog
 hugs-options:
 nhc98-options:
 jhc-options:

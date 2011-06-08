@@ -186,8 +186,8 @@ make3DDataG' box vertexPointArray (VoronoiGrain n faces) = Grain3D getColor (map
             getColor = Color4 (realToFrac $ a/(xMax box)) (realToFrac $ b/(yMax box)) (realToFrac $ c/(zMax box)) 1
                 -- TODO bug with head fnuc
                 where (Vec3D a b c) = case faces of
-                                        [] -> error $ "Grain with no face. Empty faces in grain " ++ show n
-                                        [x] -> error $ "Grain with no face. Only one face in grain " ++ show n
+                                        [] -> error $ "Grian with no face. Empty faces in grain " ++ show n
+                                        [x] -> error $ "Grian with no face. Empty faces in grain " ++ show n
                                         (x:xs) -> centroid x
             showFaces (VoronoiFace (x:xs) _ _ _) = (showEdge x) (map showOneEdge xs)
             showOneEdge (VoronoiEdge (a,b)) = showVertex a
