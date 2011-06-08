@@ -1,0 +1,53 @@
+name: VirMat
+version: 0.0.1
+cabal-version: -any
+build-type: Simple
+license: AllRightsReserved
+license-file: ""
+copyright:
+maintainer: Edgar Gomes
+build-depends: vector -any, uvector -any, unix -any,
+               statistics -any, random-fu -any, parsec >=3, mtl -any,
+               monad-loops -any, mersenne-random-pure64 -any,
+               mersenne-random -any, haskell98 -any, containers -any, base -any,
+               array -any, Vec -any, OpenGL -any, GLUT -any
+stability: dev
+homepage:
+package-url:
+bug-reports:
+synopsis: 3D virtual material generator
+description: .
+category:
+author: Edgar Gomes
+tested-with:
+data-files:
+data-dir: ""
+extra-source-files:
+extra-tmp-files:
+ 
+executable: virmat
+main-is: Main.hs
+buildable: True
+build-tools:
+cpp-options:
+cc-options:
+ld-options:
+pkgconfig-depends:
+frameworks:
+c-sources:
+extensions: BangPatterns
+extra-libraries:
+extra-lib-dirs:
+includes:
+install-includes:
+include-dirs:
+hs-source-dirs: ./src
+other-modules: DelaunayReverseOnion CommandLineInput
+               GrainDistributionGenerator GrainQuery ShowData Viewer3D
+               VoronoiCreator
+ghc-prof-options:
+ghc-shared-options:
+ghc-options:
+hugs-options:
+nhc98-options:
+jhc-options:
