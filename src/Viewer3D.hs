@@ -18,44 +18,55 @@ import Data.Vec --(Vec3D, Vec3I, Vec4I, dot, cross, norm, normSq)
 import System
 import Data.IORef
 import Control.Monad (liftM)
+import Control.Applicative ((<$>))
 
 -- Internal modules
-import ShowData (show3D, make3DData, Show3DStructure, Tetrahedron3D)
-import DelaunayReverseOnion (Box(xMax,xMin,yMax,yMin,zMax,zMin))
+import ShowData (show3D, Show3D, Tetrahedron3D, Renderable(..))
+import Math.DeUni (Box(xMax,xMin,yMax,yMin,zMax,zMin))
 
 
 import Debug.Trace
 debug :: Show a => String -> a -> a
 debug s x = trace (s ++ show x) x
 
--- >> Type definition
-type SetPoint = Array Int Vec3D
-
--- >> Data definition
+-- %%%%%%%%%%%%| Data definition |%%%%%%%%%%%%%%%%%%%%%%
 
 -- | Define all types of control over the scene
-data Control =  MoveUp | MoveDown | MoveRight | MoveLeft | MoveForward | MoveBack |
-                RotXc | RotXcw | RotYc | RotYcw | RotZc | RotZcw |
-                ZoomIn | ZoomOut | ZoomAll | Idle deriving Show
+data Control = MoveUp
+             | MoveDown
+             | MoveRight
+             | MoveLeft
+             | MoveForward
+             | MoveBack
+             | RotXc
+             | RotXcw
+             | RotYc
+             | RotYcw
+             | RotZc
+             | RotZcw
+             | ZoomIn
+             | ZoomOut
+             | ZoomAll
+             | Idle
+             deriving Show
 
 -- | Store values about the scene, as camera, target and projection box (perspective or orthonormal)
-data Scene = Scene {
-                    objPos::Vec3D,
-                    cameraPos::Vec3D,
-                    cameraUpDir::Vec3D,
-                    isPerspective::Bool,
-                    viewPortRate::Double,
-                    lensAngleDeg::Double,
-                    nearPlane::Double,
-                    farPlane::Double,
-                    targetBox::Box,
-                    orthoLeft::Double,
-                    orthoRigth::Double,
-                    orthoTop::Double,
-                    orthoBottom::Double
+data Scene = Scene { objPos         :: Vec3D
+                   , cameraPos      :: Vec3D
+                   , cameraUpDir    :: Vec3D
+                   , isPerspective  :: Bool
+                   , viewPortRate   :: Double
+                   , lensAngleDeg   :: Double
+                   , nearPlane      :: Double
+                   , farPlane       :: Double
+                   , targetBox      :: Box
+                   , orthoLeft      :: Double
+                   , orthoRigth     :: Double
+                   , orthoTop       :: Double
+                   , orthoBottom    :: Double
                    } deriving (Show)
 
-
+type SetPoint = Array Int Vec3D
 
 getWinSize::Int-> Int-> Size
 getWinSize widthPoints heigthPoints
@@ -66,12 +77,30 @@ getWinSize widthPoints heigthPoints
         yratio = (fromIntegral heigthPoints)/800.0
 
 
+display::IORef Control -> IORef Scene -> [Renderable] -> DisplayCallback
+display contrlEnv scene vertexData = do
+    clear [ColorBuffer, DepthBuffer]
+    blend $= Enabled
+    blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
+    blendEquation $= FuncAdd
+
+    depthMask $= Enabled
+    depthFunc $= Just Less
+
+    loadIdentity
+    control <- readIORef contrlEnv
+    newscene <- (readIORef scene) >>= doMove <$> calcCamera control
+    writeIORef scene newscene
+    show3D vertexData
+    flush
+
+
 reshape :: IORef Control -> IORef Scene -> ReshapeCallback
 reshape contrlEnv sceneEnv size@(Size w h) = do
     viewport $= (Position 0 0, size)
     loadIdentity
     control <- readIORef contrlEnv
-    (readIORef sceneEnv) >>= doProjection >>= moveCamera control
+    (readIORef sceneEnv) >>= doMove <$> calcCamera control
     return ()
 
 
@@ -98,24 +127,53 @@ keyboard c (SpecialKey KeyDown)   Down  _     _ = writeIORef c MoveDown >> postR
 keyboard _  _                      _    _    _ = return ()
 
 
+calcProjection::Vec3D -> Scene -> Scene
+calcProjection vecCamObj scene@(Scene { targetBox = box }) =
+    let
+        xBot    = xMin box
+        xUp     = xMax box
+        yBot    = yMin box
+        yUp     = yMax box
+        zBot    = zMin box
+        zUp     = zMax box
+        obj     = Vec3D ((xBot + xUp)/2) ((yBot + yUp)/2) ((zBot + zUp)/2)
+        maxDiagBox      = Vec3D (abs (xBot - xUp)) (abs (yBot - yUp)) (abs (zBot - zUp))
+        maxRadiusObj    = (norm maxDiagBox)/2.0
+        camera  = (normalize vecCamObj) * (pack $ vec $ 3*maxRadiusObj) + obj
+        near    = maxRadiusObj * 1.5
+        far     = maxRadiusObj * 4.5
+        left    = maxRadiusObj * 1.5
+        right   = maxRadiusObj * 1.5
+        top     = maxRadiusObj * 1.5
+        bottom  = maxRadiusObj * 1.5
+    in scene { objPos       = obj
+             , cameraPos    = camera
+             , nearPlane    = near
+             , farPlane     = far
+             , orthoLeft    = left
+             , orthoRigth   = right
+             , orthoTop     = top
+             , orthoBottom  = bottom
+             }
 
 
-moveCamera::Control -> Scene -> IO Scene
-moveCamera control scene = case control of
-    MoveRight -> move $ leftRigth (2)
-    MoveLeft -> move $ leftRigth (-2)
-    MoveUp -> move $ upDown (2)
-    MoveDown -> move $ upDown (-2)
-    ZoomIn -> move $ scene {cameraPos=zoom 0.8}
-    ZoomOut -> move $ scene {cameraPos=zoom 1.25}
-    _ -> return scene
+calcCamera::Control -> Scene -> Scene
+calcCamera control scene = case control of
+    MoveRight   ->  leftRigth (2)
+    MoveLeft    ->  leftRigth (-2)
+    MoveUp      ->  upDown (2)
+    MoveDown    ->  upDown (-2)
+    ZoomIn      ->  scene { lensAngleDeg = zoom 0.8 }
+    ZoomOut     ->  scene { lensAngleDeg = zoom 1.25 }
+    _           ->  scene
     where
         camera = cameraPos scene
         obj = objPos scene
         up = cameraUpDir scene
         vecCamObj = camera - obj
         vecUpObj = vecCamObj + up
-        zoom rate = camera * pack (vec rate)
+        zoom rate = (lensAngleDeg scene) * rate
+
         -- Rotate Up/Down
         leftRigth stepSize = scene {cameraPos=newCamPos}
             where
@@ -128,9 +186,33 @@ moveCamera control scene = case control of
                 rotAxis = normalize $ pack $ (unpack up) `cross` (unpack vecCamObj)
                 newCamPos = obj + rot (deg2Rad stepSize) rotAxis vecCamObj
                 newUp = rot (deg2Rad stepSize) rotAxis up
-        move scn = do
-            lookAt (toVertex $ cameraPos scn) (toVertex $ objPos scn) (toVector $ cameraUpDir scn)
-            return scn
+
+
+
+doMove::Scene -> IO Scene
+doMove scn@(Scene { objPos      = objPos
+                  , cameraPos   = cameraPos
+                  , cameraUpDir = cameraUpDir
+                  , viewPortRate= viewRate
+                  , lensAngleDeg= lens
+                  , nearPlane   = near
+                  , farPlane    = far
+                  , orthoLeft   = left
+                  , orthoRigth  = right
+                  , orthoTop    = top
+                  , orthoBottom = bottom
+                  }) = do
+    matrixMode $= Projection
+    loadIdentity
+    if isPerspective scn
+        then perspective (realToFrac lens) (realToFrac viewRate) (realToFrac near) (realToFrac far)
+        else ortho (realToFrac left) (realToFrac right) (realToFrac bottom) (realToFrac top) (realToFrac near) (realToFrac far)
+
+    matrixMode $= Modelview 0
+    loadIdentity
+    lookAt (toVertex cameraPos) (toVertex objPos) (toVector cameraUpDir)
+
+    return scn
 
 
 
@@ -152,70 +234,43 @@ rot angle n r = a + b + c
 ----------------------------------------------------------------------------------------
 
 
-doProjection::Scene -> IO Scene
-doProjection scene = do
-    let
-        xBot = (xMin.targetBox) scene
-        xUp = (xMax.targetBox) scene
-        yBot = (yMin.targetBox) scene
-        yUp = (yMax.targetBox) scene
-        zBot = (zMin.targetBox) scene
-        zUp = (zMax.targetBox) scene
-        obj = Vec3D ((xBot + xUp)/2) ((yBot + yUp)/2) ((zBot + zUp)/2)
-        maxDiagBox = Vec3D (max (abs xBot) (abs xUp)) (max (abs yBot) (abs yUp)) (max (abs zBot) (abs zUp))
-        maxRadiusObj = norm maxDiagBox
-        camera = cameraPos scene
-        vecCamObj = camera - obj
-        dist = norm vecCamObj
-        near = dist - maxRadiusObj*1.5
-        far =  dist + maxRadiusObj*1.5
-        lens = lensAngleDeg scene
-        viewRate = 1
-        left =  - maxRadiusObj/1.5
-        right = maxRadiusObj/1.5
-        top =   maxRadiusObj/1.5
-        bottom = - maxRadiusObj/1.5
-
-    if isPerspective scene
-        then perspective (realToFrac lens) (realToFrac viewRate) (realToFrac near) (realToFrac far)
-        -- Use of "ortho":  left -> right -> bottom -> top -> near -> far
-        else ortho (realToFrac left) (realToFrac right) (realToFrac bottom) (realToFrac top) (realToFrac near) (realToFrac far)
-    return $ scene { objPos=obj, viewPortRate=viewRate,lensAngleDeg=lens,
-                     nearPlane=near,farPlane=far,orthoLeft=left,orthoRigth=right,
-                     orthoTop=top,orthoBottom=bottom}
-
-
-display::(Show3DStructure a) => IORef Control -> IORef Scene -> a -> DisplayCallback
-display contrlEnv scene vertexData = do
-    clear [ColorBuffer]
-    blend $= Disabled
-    --blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
-    --blendEquation $= FuncAdd
-    loadIdentity
-    control <- readIORef contrlEnv
-    newscene <- (readIORef scene) >>= doProjection >>= moveCamera control
-    writeIORef scene newscene
-    show3D vertexData
-    flush
-
-
-showMap::(Show3DStructure a) => a -> Box -> IO ()
+showMap::[Renderable] -> Box -> IO ()
 showMap vertexData box = do
+    let
+        initScene = sceneZero box
     (progName, _args) <- getArgsAndInitialize
-    initialDisplayMode $= [ SingleBuffered, RGBAMode, WithDepthBuffer ] --WithAlphaComponent
-    initialWindowSize $= getWinSize 200 300
+    initialDisplayMode $= [ SingleBuffered
+                          , RGBAMode
+                          , WithDepthBuffer
+                          , WithAlphaComponent
+                          ]
+    initialWindowSize     $= getWinSize 200 300
     initialWindowPosition $= Position 100 100
-    createWindow "Show Map"
-    let sceneZero = Scene  { objPos=Vec3D 0 0 0, cameraPos=Vec3D 0 40 0, cameraUpDir=Vec3D 0 0 1, isPerspective=False,
-                             viewPortRate=1, lensAngleDeg=45, nearPlane=0, farPlane=0, targetBox=box,
-                             orthoLeft=0, orthoRigth=0, orthoTop=0, orthoBottom=0}
-    controlEnv <- newIORef (Idle::Control)
-    sceneEnv <- newIORef sceneZero
-    displayCallback $= display controlEnv sceneEnv vertexData
-    reshapeCallback $= Just (reshape controlEnv sceneEnv)
+    createWindow "Virmat"
+    controlEnv  <- newIORef (Idle::Control)
+    sceneEnv    <- newIORef (calcProjection (Vec3D 0 1 0)initScene)
+    displayCallback       $= display controlEnv sceneEnv vertexData
+    reshapeCallback       $= Just (reshape controlEnv sceneEnv)
+    motionCallback        $= Just (mouse)
     keyboardMouseCallback $= Just (keyboard controlEnv)
-    motionCallback $= Just (mouse)
     mainLoop
+
+sceneZero::Box -> Scene
+sceneZero box = Scene { objPos         = Vec3D 0 0 0
+                      , cameraPos      = Vec3D 0 80 0
+                      , cameraUpDir    = Vec3D 0 0 1
+                      , isPerspective  = True
+                      , viewPortRate   = 1
+                      , lensAngleDeg   = 45
+                      , nearPlane      = 0
+                      , farPlane       = 0
+                      , targetBox      = box
+                      , orthoLeft      = 0
+                      , orthoRigth     = 0
+                      , orthoTop       = 0
+                      , orthoBottom    = 0
+                      }
+
 
 toVector (Vec3D a b c) = Vector3 (realToFrac a) (realToFrac b) (realToFrac c)
 

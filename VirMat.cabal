@@ -1,52 +1,45 @@
-name: VirMat
-version: 0.0.1
-cabal-version: -any
-build-type: Simple
-license: AllRightsReserved
-license-file: ""
-copyright:
-maintainer: Edgar Gomes
-build-depends: GLUT -any, OpenGL -any, Vec -any, array -any,
-               base -any, containers -any, haskell98 -any, mersenne-random -any,
-               mersenne-random-pure64 -any, monad-loops -any, mtl -any,
-               parallel -any, parsec >=3, random-fu -any, statistics -any,
-               unix -any, uvector -any, vector -any
-stability: dev
-homepage:
-package-url:
-bug-reports:
-synopsis: 3D virtual material generator
-description: .
-category:
-author: Edgar Gomes
-tested-with:
-data-files:
-data-dir: ""
-extra-source-files:
-extra-tmp-files:
- 
-executable: virmat
-main-is: Main.hs
-buildable: True
-build-tools:
-cpp-options:
-cc-options:
-ld-options:
-pkgconfig-depends:
-frameworks:
-c-sources:
-extensions: BangPatterns
-extra-libraries:
-extra-lib-dirs:
-includes:
-install-includes:
-include-dirs:
-hs-source-dirs: ./src
-other-modules: Viewer3D CommandLineInput DelaunayReverseOnion
-               VoronoiCreator ShowData GrainDistributionGenerator GrainQuery
-ghc-prof-options:
-ghc-shared-options:
-ghc-options: -threaded -eventlog
-hugs-options:
-nhc98-options:
-jhc-options:
+Name:                VirMat
+Version:             0.1
+License:             BSD3
+License-file:        ""
+Author:              Edgar Gomes de Araujo
+Maintainer:          Edgar Gomes de Araujo <talktoedgar@gmail.com>
+Homepage:            
+Stability:           Experimental
+Synopsis:            3D Microstructure Generator
+Description:         
+    Creates virtual microstructure in 3 dimesions.
+Cabal-version:       >=1.2.0
+Build-type:          Simple
+Category:            Data, Math
+
+Executable virmat
+    hs-source-dirs:     src
+    Build-Depends:      DeUni           -any
+                        , GLUT          -any
+                        , OpenGL        -any
+                        , Vec           -any
+                        , array         -any
+                        , base          -any
+                        , containers    -any
+                        , haskell98     -any
+                        , mersenne-random-pure64 -any
+                        , monad-loops   -any
+                        , mtl           -any
+                        , parsec        >=3
+                        , statistics    -any
+                        , transformers  -any
+                        , unix          -any
+                        , vector        -any
+                        , random-fu     -any
+                        , random-source >=0.2
+
+    Main-is:            Main.hs
+    Buildable:          True
+    Other-modules:      CommandLineInput
+                        GrainQuery
+                        OnionLayerControl
+                        ShowData
+                        Viewer3D
+                        VoronoiBuilder
+    Extensions: 

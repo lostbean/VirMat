@@ -9,21 +9,21 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module GrainDistributionGenerator (
-getGrainBoxDistribution,
-getFullRandomGrainDistribution,
-getRandomGen,
-DistributedPoints(..)
+module GrainDistributionGenerator
+( getGrainBoxDistribution
+, getFullRandomGrainDistribution
+, getRandomGen
+, DistributedPoints(..)
+, calcBoxSize
 ) where
 
 import Control.Monad (replicateM, liftM, foldM)
 import Control.Monad.Loops (iterateUntil)
 import Control.Monad.ST (runST)
-import Data.Array.Vector (toU)
 import Data.Random
 import Data.Random.RVar
 import Data.Random.Source.StdGen
-import Data.Random.Internal.Primitives
+--import Data.Random.Internal.Primitives
 
 import Data.IORef
 import Data.Vec hiding (map, take, zipWith, length, head)
@@ -31,7 +31,7 @@ import System.Random.Mersenne.Pure64
 import Data.Array.IArray (listArray, indices, Array)
 
 
-import DelaunayReverseOnion (Box(..), isInBox)
+import Math.DeUni (Box(..), isInBox)
 import CommandLineInput (RandomSeed(..))
 
 
@@ -124,5 +124,5 @@ getWavePointList gen f (dx, dy,dz) = do
 
 getRandomGen::RandomSeed -> IO (IORef PureMT)
 getRandomGen x = case x of
-    None -> newPureMT >>= newIORef
+    NoSeed -> newPureMT >>= newIORef
     (Seed seed) ->  (return $ pureMT (fromIntegral seed)) >>= newIORef

@@ -2,16 +2,15 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module CommandLineInput (
-GrainDistributionInput (targetNumber
-                        , targetMeanVolume
-                        , targetVariance
-                        , anisotropyShapeRatio
-                        , seed ),
-GrainDistOutputFile (grainDistroOutFile),
-ShowIn3D(..),
-RandomSeed(..),
-parseArgs
+module CommandLineInput
+( JobRequest (..)
+, DistributionType (..)
+, OutputFile (..)
+, OutputInfoType   (..)
+, ShowIn3D   (..)
+, RandomSeed (..)
+, Show3DType (..)
+, parseArgs
 ) where
 
 import Text.ParserCombinators.Parsec
@@ -23,14 +22,57 @@ import Data.List
 import Control.Monad.Trans
 
 -- Data definition
-data GrainDistributionInput = GrainSimpleDist { targetNumber::Int
-                                                , targetMeanVolume::Double
-                                                , targetVariance::Double
-                                                , anisotropyShapeRatio::(Double,Double,Double)
-                                                , seed::RandomSeed } deriving (Show)
-data GrainDistOutputFile = GrainDistOutputFile { grainDistroOutFile::FilePath } deriving (Show)
-data ShowIn3D = All | ShowOnly Int deriving (Show)
-data RandomSeed = Seed Int | None deriving (Show)
+data JobRequest =
+  VoronoiGrainDistribution
+    { distrType            ::DistributionType
+    , targetNumber         ::Int
+    , targetMeanVolume     ::Double
+    , targetVariance       ::Double
+    , anisotropyShapeRatio ::(Double,Double,Double)
+    , seed                 ::RandomSeed
+    , outputFile           ::OutputFile 
+    , showIn3D             ::ShowIn3D
+    } deriving (Show)
+
+data DistributionType =
+    FullDistribution
+  | InBoxDistribution  
+  | OnionDistribution 
+    deriving (Show, Eq)
+             
+data OutputFile =
+    NoOutput
+  | OutputFile 
+    { outputFilePath ::FilePath
+    , outputInfo     ::[OutputInfoType]
+    } deriving (Show)
+                             
+data OutputInfoType =
+    GrainVolume
+  | GrainArea  
+  | GrainNumber 
+    deriving (Show, Eq)
+                      
+data ShowIn3D =
+    ShowAll [Show3DType]
+  | NoShow
+  | ShowOnly [Show3DType] Int 
+    deriving (Show)
+
+data Show3DType =
+    VoronoiGrain3D
+  | Box3D
+  | Hull3D 
+  | Points3D
+  | Simplex3D
+    deriving (Show, Eq)
+
+data RandomSeed =
+    Seed Int
+  | NoSeed
+    deriving (Show)
+
+
 -- >>>>>>>>>>>>>>>>>>>>>>>>  HELP  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 help = "\nVirMat help!\n\
 \Usage: <distribution type> <distribution parameters> <outpu file>\n\
@@ -56,7 +98,7 @@ sep = char mark <?> help      -- error string == ""
 maybeSep = skipMany sep
 
 -- | Parse the string list from command line
-parseArgs::[String] -> (GrainDistributionInput, GrainDistOutputFile, ShowIn3D)
+parseArgs::[String] -> JobRequest
 parseArgs s =
     case parsed of
         Right x -> x
@@ -66,34 +108,42 @@ parseArgs s =
 
 
 -- Build the top parser getting the using sub parsers
-parseAll = do permute (func   <$$> parseSimpleGrainDistri
-                              <||> (parseOutFile >>= (return.GrainDistOutputFile))
-                              <|?> (All, parseShowOnly))
-              where func p i s = (p, i, s)
+parseAll = parseJobRequest
 
 -- Aplly permutation to sub parses and combine them under the "-plot" command
 -- The users must to splicite the type of plot, others are optional
-parseSimpleGrainDistri = do  try (do {maybeSep; string "-simple";})
-                             permute
-                                (func
-                                <$$> parseNGrains
-                                <||> parseGrainsSize
-                                <|?> (1.0, parseVariance)
-                                <|?> ((1,1,1), parseAnisotropyShape)
-                                <|?> (None, parseSeed)
-                                )
-            where
-                    func targetNumber targetMeanVolume targetVariance anisotropyShapeRatio seed = GrainSimpleDist {..}
+parseJobRequest::Parser JobRequest
+parseJobRequest = do try (do {maybeSep; string "-voronoi";})
+                     permute
+                       (func
+                        <$$> parseDistributionType
+                        <||> parseNGrains
+                        <||> parseGrainsSize
+                        <|?> (1.0, parseVariance)
+                        <|?> ((1,1,1), parseAnisotropyShape)
+                        <|?> (NoSeed, parseSeed)
+                        <|?> (NoOutput,parseOutFile)
+                        <|?> (NoShow, parseShowOnly)
+                       )
+  where
+    func distrType targetNumber targetMeanVolume targetVariance anisotropyShapeRatio seed outputFile showIn3D = VoronoiGrainDistribution {..}
 
 -- >>>>>>>>>>>>>>>>>>>>>>>>>>> SubParser <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 -- All sub parsers from permutation can't consume any tokens if it fails, otherwise it will get stuked
 -- on that paser (waiting to complete that parser): Solution = add try to the keyword that "do {maybeSep; string "hyst" ....
 -- and leave the rest. In that way it will wait to complete only if the keyword was macth.
 
+
+-- Parse and cast the fields
+parseDistributionType::Parser DistributionType
+parseDistributionType = do try ( do {maybeSep; string "full" ; return FullDistribution ;} )
+                       <|> try ( do {maybeSep; string "inbox"; return InBoxDistribution;} )
+                       <|> try ( do {maybeSep; string "onion"; return OnionDistribution;} )
+
 -- Parse and cast the fields
 parseNGrains::Parser Int
 parseNGrains = do try ( do {maybeSep; string "n="; g <- parseNum; return g;} )
-                 <|> pzero
+              <|> pzero
 
 -- Parse and cast the fields
 parseGrainsSize::Parser Double
@@ -114,15 +164,31 @@ parseAnisotropyShape = do try (do {maybeSep; string "shape=";})
                           char ':'; l3 <- parseNum
                           return (l1, l2, l3)
 
-
+parseShow3DType::Parser Show3DType
+parseShow3DType = try ( do {maybeSep; string "v"; return VoronoiGrain3D;} )
+              <|> try ( do {maybeSep; string "b"; return Box3D;} )
+              <|> try ( do {maybeSep; string "h"; return Hull3D;} )
+              <|> try ( do {maybeSep; string "p"; return Points3D;} )
+              <|> try ( do {maybeSep; string "s"; return Simplex3D;} )
+                     
 parseShowOnly::Parser ShowIn3D
-parseShowOnly = do try ( do {maybeSep; string "showonly="; g <- parseNum; return $ ShowOnly g;} )
-                   <|> pzero
+parseShowOnly = try ( do maybeSep
+                         string "showonly="
+                         g <- parseNum
+                         t <- many parseShow3DType
+                         return $ ShowOnly t g
+                    )
+            <|> try ( do maybeSep
+                         string "showall"
+                         t <- many parseShow3DType
+                         return $ ShowAll t
+                    )
+            <|> pzero
 
 -- Parse and cast the fields
 parseSeed::Parser RandomSeed
 parseSeed = do try ( do {maybeSep; string "seed="; n <- parseNum; return $ Seed n;} )
-               <|> pzero
+           <|> pzero
 
 -- TODO fix file test
 parseInFile::Parser FilePath
@@ -132,17 +198,25 @@ parseInFile = do try ( do {maybeSep; string "-i"})
                  --isOk <- (liftIO $ fileAccess infile True True False)
                  testFile True
 
+-- Parse and cast the fields
+parseOutpuInfoType::Parser OutputInfoType
+parseOutpuInfoType = try ( do {maybeSep; string "v" ; return GrainVolume;} )
+                 <|> try ( do {maybeSep; string "a"; return GrainArea;} )
+                 <|> try ( do {maybeSep; string "n"; return GrainNumber;} )
 
-parseOutFile::Parser FilePath
+
+parseOutFile::Parser OutputFile
 parseOutFile = do try ( do {maybeSep; string "-o"})
+                  maybeSep
+                  infoType <- many1 parseOutpuInfoType
                   maybeSep
                   outfile <- many1 $ noneOf markStr
                   -- "fileAccess name read write exec" checks if the file (or other file system object)
                   -- name can be accessed for reading, writing and/or executing. To check a permission
                   -- set the corresponding argument to True.
                   --isOk <- fileAccess outfile True True False
-                  if True then return outfile else pzero
-
+                  if True then return (OutputFile outfile infoType) else pzero
+               <|> pzero
 
 parseOutDir::Parser FilePath
 parseOutDir = do try ( do {maybeSep; string "-o"})

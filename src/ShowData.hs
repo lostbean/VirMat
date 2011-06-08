@@ -1,11 +1,12 @@
 
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE GADTs #-}
 
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 
 -- Module definition
 module ShowData where
@@ -13,31 +14,46 @@ module ShowData where
 -- external imports
 import Graphics.Rendering.OpenGL (GLfloat, Vertex3, Color4, PrimitiveMode)
 import Graphics.UI.GLUT hiding (Face, Color)
-import Data.Vec hiding (map,head)
-import Data.Array ((!))
+import Data.Vec hiding (map, head, scale, translate, zipWith, length)
+import Data.Array ((!), elems)
+import Data.List ((!!))
 
 -- internal imports
-import DelaunayReverseOnion (Face, Simplex, SetSimplexPoint, Box(xMax,yMax,zMax,xMin,yMin,zMin),
-                faceRef, setSimplexPointer)
-import VoronoiCreator
+import Math.DeUni
+    ( Face
+    , Simplex
+    , Box (xMax,yMax,zMax,xMin,yMin,zMin)
+    , facePoints
+    , setCellID
+    , circumSphereCenter
+    , refND
+    )
+import VoronoiBuilder
+--import DeHull (SimplexHullFace, facePoints, outterND)
+
 
 -- data definition
-data Structure3D = DT [Tetrahedron3D] | VN [Grain3D] | Box Box3D | Base Base3D
-
-data Tetrahedron3D = Tetrahedron3D {
-                                    tetraColor::Color4 GLfloat,
-                                    tetra3DPoints::(Vertex3 GLfloat, Vertex3 GLfloat, Vertex3 GLfloat, Vertex3 GLfloat)
-                                   }
-data Grain3D = Grain3D {
-                        grainColor::Color4 GLfloat,
-                        grain3DPoints::[[Vertex3 GLfloat]]
+data Point3D = Point3D { point3D   ::Vector3 GLfloat
+                       , pointColor::Color4 GLfloat
                        }
 
-data Box3D = Box3D {
-                    colorBox::Color4 GLfloat,
-                    xBoxRange::(GLfloat, GLfloat),
-                    yBoxRange::(GLfloat, GLfloat),
-                    zBoxRange::(GLfloat, GLfloat)
+data SimplexFace3D = SimplexFace3D { face3DPoints::(Vertex3 GLfloat, Vertex3 GLfloat, Vertex3 GLfloat)
+                                   , normal2face ::(Vertex3 GLfloat, Vertex3 GLfloat)
+                                   , faceColor   ::Color4 GLfloat
+                                   } deriving (Show)
+
+data Tetrahedron3D = Tetrahedron3D { tetraColor   ::Color4 GLfloat
+                                   , tetra3DPoints::(Vertex3 GLfloat, Vertex3 GLfloat, Vertex3 GLfloat, Vertex3 GLfloat)
+                                   }
+
+data Grain3D = Grain3D { grainColor   ::Color4 GLfloat
+                       , grain3DPoints::[[Vertex3 GLfloat]]
+                       }
+
+data Box3D = Box3D { colorBox ::Color4 GLfloat
+                   , xBoxRange::(GLfloat, GLfloat)
+                   , yBoxRange::(GLfloat, GLfloat)
+                   , zBoxRange::(GLfloat, GLfloat)
                    }
 
 data Base3D = Base3D (Color4 GLfloat) (Vertex3 GLfloat)
@@ -47,84 +63,118 @@ data Base3D = Base3D (Color4 GLfloat) (Vertex3 GLfloat)
 instance Show Vec3D where
     show f = "|" ++ (show a) ++ ", " ++ (show b) ++ ", " ++ (show c) ++ "|"
         where (Vec3D a b c) = f
-
--- instance Show Face where
---    show f = "|" ++ (show a) ++ ", " ++ (show b) ++ ", " ++ (show c) ++ "|"
---        where (a, b, c) = faceRef f
-
+{-
 instance Show VoronoiGrain where
-    show (VoronoiGrain n faces) = "Grain " ++ (show n) ++ " :" ++ concatMap showFaces faces ++ "\n"
-        where
-            showFaces (VoronoiFace (x:xs) _ _ (a,b)) = "\n\tface " ++ show a ++ " -> " ++ show b ++ concatMap (\x -> "\n\t\t|- " ++ showEdge x) xs ++ "\n\t\t|_ " ++ showEdge x
-            showEdge (VoronoiEdge (a,b)) = "edge " ++ (showVertex a) ++ " <-> " ++ (showVertex b)
-            showVertex (VoronoiVertex x _) = show x
+    show g = "Grain " ++ show (grainID g) ++ " :" ++ concatMap showSimplexFaces (faces g) ++ "\n"
+        where showSimplexFaces = ("\n\t\t|- " ++).show
+
+instance Show VoronoiFace where
+    show f = "face to grain " ++ show (faceTo f) ++ " -> "  -- ++ (show $ map (edges f))
+-}
+
+-- | Using GADTs and Existential type to homogenize Show3D components into a list
+data Renderable where
+   Renderable :: Show3D b => [b] -> Renderable
 
 -- |Create a class of type that are able to draw 3D things in OpenGL
-class Show3DStructure a where
+class Show3D a where
     show3D::a -> IO()
 
-instance Show3DStructure [Tetrahedron3D] where
+instance (Show3D a) => Show3D [a] where
     show3D a = do
         mapM_  show3D a
 
-instance Show3DStructure Tetrahedron3D where
+
+instance Show3D Renderable where
+    show3D (Renderable x) = show3D x
+
+
+-- TODO Change convesion to outside
+instance Show3D Point3D where
+    show3D v = do
+        currentColor $= pointColor v
+        translate $ point3D v
+        let w = 0.25::GLfloat
+        renderPrimitive Quads $ do
+            vertex $ Vertex3 w w w
+            vertex $ Vertex3 w w (-w)
+            vertex $ Vertex3 w (-w) (-w)
+            vertex $ Vertex3 w (-w) w
+            vertex $ Vertex3 w w w
+            vertex $ Vertex3 w w (-w)
+            vertex $ Vertex3 (-w) w (-w)
+            vertex $ Vertex3 (-w) w w
+            vertex $ Vertex3 w w w
+            vertex $ Vertex3 w (-w) w
+            vertex $ Vertex3 (-w) (-w) w
+            vertex $ Vertex3 (-w) w w
+            vertex $ Vertex3 (-w) w w
+            vertex $ Vertex3 (-w) w (-w)
+            vertex $ Vertex3 (-w) (-w) (-w)
+            vertex $ Vertex3 (-w) (-w) w
+            vertex $ Vertex3 w (-w) w
+            vertex $ Vertex3 w (-w) (-w)
+            vertex $ Vertex3 (-w) (-w) (-w)
+            vertex $ Vertex3 (-w) (-w) w
+            vertex $ Vertex3 w w (-w)
+            vertex $ Vertex3 w (-w) (-w)
+            vertex $ Vertex3 (-w) (-w) (-w)
+            vertex $ Vertex3 (-w) w (-w)
+        let Vector3 a b c = point3D v
+        translate $ Vector3 ((-1)*a) ((-1)*b) ((-1)*c)
+
+instance Show3D Tetrahedron3D where
     show3D tetra = do
         let (pA, pB, pC, pD) = tetra3DPoints tetra
-        currentColor $= tetraColor tetra
-        renderPrimitive Triangles $ do
-            vertex pA
-            vertex pB
-            vertex pC
+            renderFace a b c = do
+                currentColor $= tetraColor tetra
+                renderPrimitive Triangles $ do
+                    vertex a
+                    vertex b
+                    vertex c
+                currentColor $= Color4 1 1 1 0.5
+                renderPrimitive LineStrip $ do
+                    vertex a
+                    vertex b
+                    vertex c
+        renderFace pA pB pC
+        renderFace pA pB pD
+        renderFace pB pC pD
+        renderFace pC pA pD
 
-            vertex pA
-            vertex pB
-            vertex pD
-
-            vertex pB
-            vertex pC
-            vertex pD
-
-            vertex pC
-            vertex pA
-            vertex pD
-
-        currentColor $= Color4 1 1 1 0.5
-        renderPrimitive LineStrip $ do
-            vertex pA
-            vertex pB
-
-            vertex pB
-            vertex pC
-
-            vertex pC
-            vertex pA
-
-            vertex pA
-            vertex pD
-
-            vertex pB
-            vertex pD
-
-            vertex pC
-            vertex pD
-
-
-instance Show3DStructure Grain3D where
-    show3D grain = do
-        currentColor $= grainColor grain
-        renderPrimitive Polygon $ do
-            let makeFace fs = mapM_ vertex fs
-            mapM_ makeFace (grain3DPoints grain)
-        currentColor $= Color4 1 1 1 1
+instance Show3D SimplexFace3D where
+    show3D face = do
+        let (pA, pB, pC) = face3DPoints face
+            (nA, nB) = normal2face face
+        --currentColor $= faceColor face
+        --renderPrimitive Triangles $ do
+        --    vertex pA
+        --    vertex pB
+        --    vertex pC
+        currentColor $= Color4 1 1 1 0.8
         renderPrimitive LineLoop $ do
-            let makeFace fs = mapM_ vertex fs
-            mapM_ makeFace (grain3DPoints grain)
+            vertex pA
+            vertex pB
+            vertex pC
+        currentColor $= Color4 1 0 0 0.8
+        renderPrimitive Lines $ do
+            vertex nA
+            vertex nB
 
-instance Show3DStructure [Grain3D] where
-    show3D a = do
-        mapM_  show3D a
+instance Show3D Grain3D where
+    show3D grain = do
+        let
+            makeSimplexFace fs = renderPrimitive Polygon  $ mapM_ vertex fs
+            makeEdge fs = renderPrimitive LineLoop $ mapM_ vertex fs
 
-instance Show3DStructure Base3D where
+        currentColor $= grainColor grain
+        mapM_ makeSimplexFace (grain3DPoints grain)
+
+        currentColor $= Color4 1 1 1 1
+        mapM_ makeEdge (grain3DPoints grain)
+
+
+instance Show3D Base3D where
     show3D a = do
         renderPrimitive LineStrip $ do
             currentColor $= Color4 1 0 0 1
@@ -140,7 +190,7 @@ instance Show3DStructure Base3D where
             vertex (Vertex3 0 0 (1::GLfloat))
 
 
-instance Show3DStructure Box3D where
+instance Show3D Box3D where
     show3D a = do
         currentColor $= colorBox a
         let (xmax, xmin) = xBoxRange a
@@ -148,17 +198,18 @@ instance Show3DStructure Box3D where
             (zmax, zmin) = zBoxRange a
             upRigFro = vertex $ Vertex3 xmax ymax zmax
             upLefFro = vertex $ Vertex3 xmax ymin zmax
-            upRigBac = vertex $ Vertex3 xmax ymax zmin
-            upLefBac = vertex $ Vertex3 xmax ymin zmin
-            botRigFro = vertex $ Vertex3 xmax ymax zmax
-            botLefFro = vertex $ Vertex3 xmax ymin zmax
-            botRigBac = vertex $ Vertex3 xmax ymax zmin
-            botLefBac = vertex $ Vertex3 xmax ymin zmin
-        renderPrimitive LineStrip $ do
-            upRigFro; upLefFro; upRigBac; upLefBac; upRigFro
+            upRigBac = vertex $ Vertex3 xmin ymin zmax
+            upLefBac = vertex $ Vertex3 xmin ymax zmax
 
-        renderPrimitive LineStrip $ do
-            botRigFro; botLefFro; botRigBac; botLefBac; botRigFro
+            botRigFro = vertex $ Vertex3 xmax ymax zmin
+            botLefFro = vertex $ Vertex3 xmax ymin zmin
+            botRigBac = vertex $ Vertex3 xmin ymin zmin
+            botLefBac = vertex $ Vertex3 xmin ymax zmin
+        renderPrimitive LineLoop $ do
+            upRigFro; upLefFro; upRigBac; upLefBac
+
+        renderPrimitive LineLoop $ do
+            botRigFro; botLefFro; botRigBac; botLefBac
 
         renderPrimitive Lines $ do
             upRigFro; botRigFro
@@ -168,35 +219,59 @@ instance Show3DStructure Box3D where
 
 
 
-make3DData::(SetSimplexPoint, [Simplex]) -> [Tetrahedron3D]
-make3DData (setPoint, simplexs) = map (getColorPonit.setSimplexPointer) simplexs
+renderTetrahedron3D::Box -> [Simplex] -> [Tetrahedron3D]
+renderTetrahedron3D box simplexs = map (getColorPonit.setCellID) simplexs
     where
-        getColorPonit (a,b,c,d) = Tetrahedron3D (calcColorPos a b c d) (makePoint $ setPoint!a, makePoint $ setPoint!b, makePoint $ setPoint!c, makePoint $ setPoint!d)
-        calcColorPos a b c d = Color4 0.0 0.1 ((fromIntegral c)/10) 0.6
-        makePoint (Vec3D p1 p2 p3) = Vertex3 (realToFrac p1) (realToFrac p2) ((realToFrac p3))
+        getColorPonit (a,b,c,d) = Tetrahedron3D (calcColorPos $ a) (corners (a,b,c,d))
+        calcColorPos (Vec3D a b c) = Color4 (realToFrac $ a/(xMax box)) (realToFrac $ b/(yMax box)) (realToFrac $ c/(zMax box)) 0.8
+        corners (a,b,c,d) = (point2vertex a, point2vertex b, point2vertex c, point2vertex d)
 
 
-make3DDataG::Box -> VertexPointArray -> [VoronoiGrain] -> [Grain3D]
-make3DDataG box vertexPointArray = map (make3DDataG' box vertexPointArray)
+renderGrain3D::Box -> [VoronoiGrain] -> [Grain3D]
+renderGrain3D box = map renderGrain
+    where
+    renderGrain x = Grain3D getColor (map showSimplexFaces fs)
+            where
+                fs = faces x
+                getColor = Color4 (realToFrac $ a/(xMax box)) (realToFrac $ b/(yMax box)) (realToFrac $ c/(zMax box)) 0.6
+                    -- TODO bug with head fnuc
+                    where (Vec3D a b c) = case fs of
+                                            [] -> error $ "Grain with no face. Empty faces in grain."
+                                            (x:xs) -> case edges x of
+                                                [] -> error $ "Grain with invalid face."
+                                                (y:ys) -> circumSphereCenter y
+                showSimplexFaces = (map $ point2vertex.circumSphereCenter).edges
 
-make3DDataG'::Box -> VertexPointArray -> VoronoiGrain -> Grain3D
-make3DDataG' box vertexPointArray (VoronoiGrain n faces) = Grain3D getColor (map showFaces faces)
-        where
 
-            getColor = Color4 (realToFrac $ a/(xMax box)) (realToFrac $ b/(yMax box)) (realToFrac $ c/(zMax box)) 1
-                -- TODO bug with head fnuc
-                where (Vec3D a b c) = case faces of
-                                        [] -> error $ "Grian with no face. Empty faces in grain " ++ show n
-                                        [x] -> error $ "Grian with no face. Empty faces in grain " ++ show n
-                                        (x:xs) -> centroid x
-            showFaces (VoronoiFace (x:xs) _ _ _) = (showEdge x) (map showOneEdge xs)
-            showOneEdge (VoronoiEdge (a,b)) = showVertex a
-            showEdge (VoronoiEdge (a,b)) xs = (showVertex a):(showVertex b):xs
-            showVertex (VoronoiVertex x _) = makePoint (vertexPointArray!x)
-            makePoint (Vec3D p1 p2 p3) = Vertex3 (realToFrac p1) (realToFrac p2) ((realToFrac p3))
+renderPoint3D::Int -> [Vec3D] -> [Point3D]
+renderPoint3D color ps
+    | color == 1 = map (conv (Color4 0 0 1 0.5)) ps
+    | color == 2 = map (conv (Color4 0 1 0 0.5)) ps
+    | otherwise  = map (conv (Color4 1 0 0 0.5)) ps
+    where conv c x = Point3D (point2vector x) c
 
-make3DBox::Box -> Box3D
-make3DBox box = Box3D { colorBox = Color4 1 1 1 1,
+
+renderBox3D::Box -> Box3D
+renderBox3D box = Box3D { colorBox = Color4 1 1 1 1,
                         xBoxRange = ((realToFrac.xMin) box, (realToFrac.xMax) box),
                         yBoxRange = ((realToFrac.yMin) box, (realToFrac.yMax) box),
                         zBoxRange = ((realToFrac.zMin) box, (realToFrac.zMax) box)}
+
+renderHullFaces::[Face] -> [SimplexFace3D]
+renderHullFaces xs = zipWith convert [1..]  xs
+    where
+    convert i x = SimplexFace3D (point2vertex a, point2vertex b, point2vertex c) normal colorface
+        where
+        (a, b ,c)  = facePoints x
+        nd         = refND x
+        centerFace = (a + b + c) / 3
+        normal     = (point2vertex $ centerFace, point2vertex $ centerFace + nd)
+        colorface  = Color4 1 1 (realToFrac $ k*i) 0.6
+        k          = 1/(fromIntegral $ length xs)
+
+packRender::(Show3D a) => [a] -> Renderable
+packRender = Renderable
+
+point2vertex (Vec3D p1 p2 p3) = Vertex3 (realToFrac p1) (realToFrac p2) ((realToFrac p3))
+
+point2vector (Vec3D p1 p2 p3) = Vector3 (realToFrac p1) (realToFrac p2) ((realToFrac p3))
