@@ -1,5 +1,5 @@
 Name:                VirMat
-Version:             0.1
+Version:             0.2
 License:             BSD3
 License-file:        ""
 Author:              Edgar Gomes de Araujo
@@ -33,13 +33,20 @@ Executable virmat
                         , vector        -any
                         , random-fu     -any
                         , random-source >=0.2
+                        , diffarray     -any
+                        , text          -any
+                        , xml-types     -any
+                        , xml-enumerator        -any
 
     Main-is:            Main.hs
     Buildable:          True
     Other-modules:      CommandLineInput
                         GrainQuery
+                        DelaunayStatistics
                         OnionLayerControl
                         ShowData
                         Viewer3D
                         VoronoiBuilder
+                        VTKGen
     Extensions: 
+    ghc-options:        -O
