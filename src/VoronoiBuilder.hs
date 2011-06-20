@@ -27,39 +27,45 @@ module VoronoiBuilder
 ) where
 
 -- External modules
+import Data.Array.Diff (DiffArray, (!))
 import Data.Vec hiding (map, last)
 import Data.List (foldl',sortBy,(\\))
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IM
 import Maybe
 
 -- Internal modules
-import Math.DeUni (Simplex, setCellID, circumSphereCenter)
+import Math.DeUni (PointPointer, Simplex, setCellID, circumSphereCenter)
+
+
+type SetPoint = DiffArray PointPointer Vec3D
 
 -- | Main Fucntion
-convertDT2Voronoi = makeGrain.findGrainsTree
+convertDT2Voronoi sP = (makeGrain sP).(findGrainsTree sP)
 
 
 -- |Recursive data tree for constructe grain structure.
 --  L3 (level three) - Simplex with a commun vertex, such a vertex is the center of a grain.
 --  L2 (level two) - Simplex with a commun vertex - vertex pair, such a a pair defines a face.
 --  L3 (level one) - Simplex with a commun vertex, such a vertex is the edge of a face (triple junction).
-data Level1 = L1 Vec3D [Simplex]
-data Level2 = L2 Vec3D [Level1]
-data Level3 = L3 Vec3D [Level2]
+data Level1 = L1 Vec3D PointPointer [(Int, Simplex)]
+data Level2 = L2 Vec3D PointPointer [Level1]
+data Level3 = L3 Vec3D PointPointer [Level2]
    
 instance Show Level3 where
-  show (L3 id x) = "\n    L3: " ++ (show id) ++ (show x)
+  show (L3 _ id x) = "\n    L3: " ++ (show id) ++ (show x)
 instance Show Level2 where
-  show (L2 id x) = "\n        L2: "  ++ (show id) ++ (show x)
+  show (L2 _ id x) = "\n        L2: "  ++ (show id) ++ (show x)
 instance Show Level1 where
-  show (L1 id x) = "\n            L1: " ++ (show id) ++ (foldl' (\acc a -> acc ++
+  show (L1 _ id x) = "\n            L1: " ++ (show id) ++ (foldl' (\acc a -> acc ++
                    "\n                     " ++ show a) [] x)
 
-findNode::[Vec3D] -> [Simplex] -> [(Vec3D, Simplex)]
+findNode::[PointPointer] -> [(Int, Simplex)] -> [(PointPointer, (Int, Simplex))]
 findNode blacklist = foldl' func []
     where
     func acc x =
             let
-                (a, b, c, d) = setCellID x
+                (a, b, c, d) = (setCellID.snd) x
                 cellIDlist = [a, b, c, d]
                 cleanList = map (\id -> (id, x)) (cellIDlist \\ blacklist)
             in  cleanList ++ acc
@@ -75,17 +81,19 @@ sortGroup = groupOrd.(sortBy comp)
             where
                 (store, rest) = span (\a -> fst x == fst a) ls
 
-calcLevelOne::[Vec3D] -> [Simplex] -> [Level1]
-calcLevelOne blacklist = (map (\(x,y) -> L1 x y)).sortGroup.(findNode blacklist)
+findGrainsTree::SetPoint -> (IntMap Simplex) -> [Level3]
+findGrainsTree sP = (level2to3 []).(level1to2 []).(calcLevelOne []).(IM.toList)
+  where
+    calcLevelOne::[PointPointer] -> [(Int, Simplex)] -> [Level1]
+    calcLevelOne blacklist = (map (\(x,y) -> L1 (sP!x) x y)).sortGroup.(findNode blacklist)
 
-level1to2::[Vec3D] -> [Level1] -> [Level2]
-level1to2 blacklist = map (\(L1 id x) -> L2 id (calcLevelOne (id:blacklist) x))
+    level1to2::[PointPointer] -> [Level1] -> [Level2]
+    level1to2 blacklist = map (\(L1 vec id x) -> L2 vec id (calcLevelOne (id:blacklist) x))
 
-level2to3::[Vec3D] -> [Level2] -> [Level3]
-level2to3 blacklist = map (\(L2 id x) -> L3 id (level1to2 (id:blacklist) x))
+    level2to3::[PointPointer] -> [Level2] -> [Level3]
+    level2to3 blacklist = map (\(L2 vec id x) -> L3 vec id (level1to2 (id:blacklist) x))
 
-findGrainsTree::[Simplex] -> [Level3]
-findGrainsTree = (level2to3 []).(level1to2 []).(calcLevelOne [])
+
 
 
 
@@ -94,13 +102,15 @@ findGrainsTree = (level2to3 []).(level1to2 []).(calcLevelOne [])
 
 
 data VoronoiGrain = VoronoiGrain
-   { grainCenter::Vec3D
-   , faces::[VoronoiFace]
+   { grainCenter   :: Vec3D
+   , grainCenterIx :: PointPointer
+   , faces         :: [VoronoiFace]
    }
 
 data VoronoiFace = VoronoiFace
-   { faceTo::Vec3D
-   , edges::[Simplex]
+   { faceTo   :: Vec3D
+   , faceToIx :: PointPointer
+   , edges    :: [(Int, Simplex)]
    }
 
 
@@ -109,28 +119,28 @@ instance Show VoronoiGrain where
         where showSimplexFaces = ("\n\t\t|- " ++).show
 
 instance Show VoronoiFace where
-    show f = "face to grain " ++ show (faceTo f) ++ " -> " ++ (show $ map circumSphereCenter (edges f))
+    show f = "face to grain " ++ show (faceTo f) ++ " -> " ++ (show $ map (circumSphereCenter.snd) (edges f))
 
 
-buildFace::Level2 -> Maybe VoronoiFace
-buildFace (L2 id rc ) = sequence rc >>= makePokerFace >>= makeFace
+buildFace::SetPoint -> Level2 -> Maybe VoronoiFace
+buildFace sP (L2 vec id rc ) = sequence rc >>= makePokerFace >>= makeFace
     where
-        makeFace e = return $ VoronoiFace id e
+        makeFace e = return $ VoronoiFace vec id e
 
         sequence []           = Just []
         sequence (x:xs)  = case x of
-            (L1 id ls) ->  case sequence xs of
+            (L1 _ _ ls) ->  case sequence xs of
                 Just xs' -> Just (ls:xs')
                 _        -> Nothing
 
-buildGrain::Level3 -> Maybe VoronoiGrain
-buildGrain (L3 id fs ) = sequence fs >>= makeGrain
+buildGrain::SetPoint -> Level3 -> Maybe VoronoiGrain
+buildGrain sP (L3 vec id fs ) = sequence fs >>= makeGrain
     where
-        makeGrain f = return $ VoronoiGrain id f
+        makeGrain f = return $ VoronoiGrain vec id f
 
         sequence []           = Just []
         sequence (x:xs)  = let
-            face = buildFace x
+            face = buildFace sP x
                            in
             case face of
             Just f ->
@@ -140,11 +150,11 @@ buildGrain (L3 id fs ) = sequence fs >>= makeGrain
             _        -> Nothing
 
 
-makeGrain::[Level3] -> [VoronoiGrain]
-makeGrain = mapMaybe buildGrain
+makeGrain::SetPoint -> [Level3] -> [VoronoiGrain]
+makeGrain sP = mapMaybe (buildGrain sP)
 
 
-makePokerFace::[[Simplex]] -> Maybe [Simplex]
+makePokerFace::[[(Int, Simplex)]] -> Maybe [(Int, Simplex)]
 makePokerFace xs@(x:xs') = case x of
     [a, _] -> buildSequence a xs >>= testClosure a
     _     -> Nothing
@@ -155,7 +165,7 @@ makePokerFace xs@(x:xs') = case x of
             | otherwise      = Nothing
 
 
-buildSequence::Simplex -> [[Simplex]] -> Maybe [Simplex]
+buildSequence::(Int, Simplex) -> [[(Int, Simplex)]] -> Maybe [(Int, Simplex)]
 buildSequence a xs = case lookForNextEdge a xs of
     Found id next [] -> Just [next]
     Found _ next rest ->
@@ -168,7 +178,7 @@ buildSequence a xs = case lookForNextEdge a xs of
 data ScanEdge id a  = Invalid | Found id id [a] | NotFound id deriving (Show)
 
 
-lookForNextEdge::Simplex -> [[Simplex]] -> ScanEdge Simplex [Simplex]
+lookForNextEdge::(Int, Simplex) -> [[(Int, Simplex)]] -> ScanEdge (Int, Simplex) [(Int, Simplex)]
 lookForNextEdge p xs@[]           =  NotFound p
 lookForNextEdge p xs@(x:xs')      = case x of
     [s1, s2] -> testCandidate s1 s2
