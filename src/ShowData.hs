@@ -15,13 +15,14 @@ module ShowData where
 import Graphics.Rendering.OpenGL (GLfloat, Vertex3, Color4, PrimitiveMode)
 import Graphics.UI.GLUT hiding (Face, Color)
 import Data.Vec hiding (map, head, scale, translate, zipWith, length)
-import Data.Array ((!), elems)
+import Data.Array.Diff (DiffArray, (!))
 import Data.List ((!!))
 
 -- internal imports
 import Math.DeUni
     ( Face
     , Simplex
+    , PointPointer 
     , Box (xMax,yMax,zMax,xMin,yMin,zMin)
     , facePoints
     , setCellID
@@ -31,6 +32,7 @@ import Math.DeUni
 import VoronoiBuilder
 --import DeHull (SimplexHullFace, facePoints, outterND)
 
+type SetPoint = DiffArray PointPointer Vec3D
 
 -- data definition
 data Point3D = Point3D { point3D   ::Vector3 GLfloat
@@ -219,10 +221,10 @@ instance Show3D Box3D where
 
 
 
-renderTetrahedron3D::Box -> [Simplex] -> [Tetrahedron3D]
-renderTetrahedron3D box simplexs = map (getColorPonit.setCellID) simplexs
+renderTetrahedron3D::SetPoint -> Box -> [Simplex] -> [Tetrahedron3D]
+renderTetrahedron3D sP box simplexs = map (getColorPonit.setCellID) simplexs
     where
-        getColorPonit (a,b,c,d) = Tetrahedron3D (calcColorPos $ a) (corners (a,b,c,d))
+        getColorPonit (a,b,c,d) = Tetrahedron3D (calcColorPos $ sP!a) (corners (sP!a,sP!b,sP!c,sP!d))
         calcColorPos (Vec3D a b c) = Color4 (realToFrac $ a/(xMax box)) (realToFrac $ b/(yMax box)) (realToFrac $ c/(zMax box)) 0.8
         corners (a,b,c,d) = (point2vertex a, point2vertex b, point2vertex c, point2vertex d)
 
@@ -239,8 +241,8 @@ renderGrain3D box = map renderGrain
                                             [] -> error $ "Grain with no face. Empty faces in grain."
                                             (x:xs) -> case edges x of
                                                 [] -> error $ "Grain with invalid face."
-                                                (y:ys) -> circumSphereCenter y
-                showSimplexFaces = (map $ point2vertex.circumSphereCenter).edges
+                                                (y:ys) -> (circumSphereCenter.snd) y
+                showSimplexFaces = (map $ point2vertex.circumSphereCenter.snd).edges
 
 
 renderPoint3D::Int -> [Vec3D] -> [Point3D]
@@ -257,17 +259,18 @@ renderBox3D box = Box3D { colorBox = Color4 1 1 1 1,
                         yBoxRange = ((realToFrac.yMin) box, (realToFrac.yMax) box),
                         zBoxRange = ((realToFrac.zMin) box, (realToFrac.zMax) box)}
 
-renderHullFaces::[Face] -> [SimplexFace3D]
-renderHullFaces xs = zipWith convert [1..]  xs
+renderHullFaces::SetPoint -> [Face] -> [SimplexFace3D]
+renderHullFaces sP xs = zipWith convert [1..]  xs
     where
     convert i x = SimplexFace3D (point2vertex a, point2vertex b, point2vertex c) normal colorface
         where
-        (a, b ,c)  = facePoints x
-        nd         = refND x
-        centerFace = (a + b + c) / 3
-        normal     = (point2vertex $ centerFace, point2vertex $ centerFace + nd)
-        colorface  = Color4 1 1 (realToFrac $ k*i) 0.6
-        k          = 1/(fromIntegral $ length xs)
+        (ia, ib ,ic) = facePoints x
+        (a, b, c)    = (sP!ia, sP!ib, sP!ic)
+        nd           = refND x
+        centerFace   = (a + b + c) / 3
+        normal       = (point2vertex $ centerFace, point2vertex $ centerFace + nd)
+        colorface    = Color4 1 1 (realToFrac $ k*i) 0.6
+        k            = 1/(fromIntegral $ length xs)
 
 packRender::(Show3D a) => [a] -> Renderable
 packRender = Renderable

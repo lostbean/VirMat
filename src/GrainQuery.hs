@@ -36,7 +36,7 @@ getVolumeGrain grain = Volume $ abs (volume / 3)
         prismVolume f = (normal `dot` centroid) * (getArea area)
           where area   = getFaceArea normal f
                 normal = getNormalToFace grain f
-                centroid = getCentroid (map circumSphereCenter (edges f))
+                centroid = getCentroid (map (circumSphereCenter.snd) (edges f))
 
 getAreaGrain::VoronoiGrain -> Area
 getAreaGrain grain = foldl' (\a b -> a + (getArea b)) (Area 0) (faces grain)
@@ -50,7 +50,7 @@ getFaceArea::Vec3D -> VoronoiFace -> Area
 getFaceArea normal face = debug ("area: " ++ show face ++ " :--> ") area
     where
         area    = Area $ abs $ 0.5 * (normal `dot` (sumTri vs))
-        vs      = map circumSphereCenter (edges face)
+        vs      = map (circumSphereCenter.snd) (edges face)
         errFace = error "Error: Malformed face - trying to define a face with less than 3 points."
         -- the result will not make sense if the list conteins less than 3 points
         sumTri::[Vec3D] -> Vec3D

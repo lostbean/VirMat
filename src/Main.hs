@@ -16,13 +16,19 @@ import GrainQuery
 import ShowData hiding (Box3D)
 import GrainDistributionGenerator
 import CommandLineInput
-import OnionLayerControl
+import DelaunayStatistics
+import VTKGen
+import IMC
+
 
 import qualified Data.Map as Map
+import qualified Data.IntMap as IM
 import Data.Maybe (isJust)
 import Data.List (foldl',sortBy,(\\),nub)
 import Maybe
-import Data.Vec hiding (length, map)
+import Data.Vec (Vec3D)
+import Data.Array.Diff (listArray, (!), elems, bounds, (//), DiffArray)
+
 
 import Data.Random
 import Data.Random.RVar
@@ -45,30 +51,47 @@ main = do
     (DistributedPoints box ps) <- case distrType jobReq of
       FullDistribution  -> getFullRandomGrainDistribution gen n vol anis
       InBoxDistribution -> getGrainBoxDistribution gen n vol var anis
-      OnionDistribution -> getOnionDistribution gen n vol var anis 10000000000
+      --OnionDistribution -> getOnionDistribution gen n vol var anis 10000000000
 
     let
-        hull         = runDeHull box ps
-        (wall,_)     = runDeWall box ps
+        l::PointPointer
+        l = fromIntegral $ length ps
+        arr = listArray (1, l) ps
+        pset = [1..l]
+        hull         = runDeHull box arr pset
+        (wall,wallSt)     = runDeWall box arr pset
         inBoxSimplex = onlySimpleInBox box wall
-        grains       = convertDT2Voronoi inBoxSimplex
+        grains       = convertDT2Voronoi arr inBoxSimplex
 
     putStrLn "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     putStrLn $ "Box: " ++ show box
     putStrLn $ "Number of gen. points: "  ++ show (length ps)
-    putStrLn $ "Number of gen. simplex: " ++ show (length inBoxSimplex)
+    putStrLn $ "Number of gen. simplex: " ++ show (IM.size wall)
     putStrLn $ "Number of gen. grains: "  ++ show (length grains)
     putStrLn $ "Average grain volume: " ++ (show.getVolume.getAverageGrainVolume) grains
     putStrLn $ "Std Deviation of grain volume: " ++ (show.getVolume.getStdDeviationGrainVolume) grains
     putStrLn "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-
+            
+    --print wallSt
+    
+    let oneG = take 2 grains
+    writeVTKfile "micro.vtu" grains
+    
+    printToFile "stat_target.txt" testLogNorDist
+    
+    fstArr <- getFirstRandomGrainDistribution gen n vol (1,1,1)
+    newWall <- imc fstArr gen (logNormal 1 0.5) (0, 20) (-1)
+    
+    --printToFile "stat.new.txt" $ (testDist.(findGrainsTree newArr)) newWall    
+    --putStrLn $ "NW - Number of simplex: " ++ show (length newWall)
+        
     case outputFile jobReq of
       OutputFile file types -> do
         writeFile file ((getHeader jobReq) ++ (concatMap (printGrainInfo grains) (nub types)))
       _                     -> return ()
 
 
-    let render t = map (render3DMC box ps wall) (nub t) in case showIn3D jobReq of
+    let render t = map (render3DMC arr box ps wall) (nub t) in case showIn3D jobReq of
       ShowAll t    -> showMap (render t) box
       ShowOnly t i -> showMap (render t) box
       _            -> return ()
@@ -90,22 +113,24 @@ getHeader job = "# Distribution Type: "        ++ (show $ distrType job)
              ++ "\n# Target variance: "        ++ (show $ targetVariance job)
              ++ "\n# Aspect ratio:  "          ++ (show $ anisotropyShapeRatio job)
     
-render3DMC::Box -> [Vec3D] -> [Simplex] -> Show3DType -> Renderable
-render3DMC box ps wall showType =  case showType of  
+render3DMC::SetPoint -> Box -> [Vec3D] -> IM.IntMap Simplex -> Show3DType -> Renderable
+render3DMC arr box ps wall showType =  case showType of  
   VoronoiGrain3D -> showGrain
   Box3D          -> showBox
   Hull3D         -> showHull
   Points3D       -> showPoints
   Simplex3D      -> showSimplex
   where
-    showSimplex = packRender $ renderTetrahedron3D box wall
+    showSimplex = packRender $ renderTetrahedron3D arr box (IM.elems wall)
     showPoints  = packRender $ renderPoint3D 1 ps
     showBox     = packRender $ [renderBox3D box]
     showGrain   = packRender $ renderGrain3D box grains
-    showHull    = packRender $ renderHullFaces hull  
-    hull         = runDeHull box ps
+    showHull    = packRender $ renderHullFaces arr (IM.elems hull) 
+    (lbArr, hbArr) = bounds arr
+    pSet = [lbArr..hbArr]
+    (hull,_)     = runDeHull box arr pSet
     inBoxSimplex = onlySimpleInBox box wall
-    grains       = convertDT2Voronoi inBoxSimplex
+    grains       = convertDT2Voronoi arr inBoxSimplex
 
 
 {-
@@ -116,5 +141,5 @@ getVolume p simplex = abs (prismVolume / 6)
         prismVolume = (unpack ((p!a) - (p!d))) `dot` ((unpack (p!b - p!d)) `cross` (unpack (p!c - p!d)))
 -}
 
-onlySimpleInBox::Box -> [Simplex] -> [Simplex]
-onlySimpleInBox box ls = filter ((isInBox box).circumSphereCenter) ls
+onlySimpleInBox::Box -> (IM.IntMap Simplex) -> (IM.IntMap Simplex)
+onlySimpleInBox box ls = IM.filter ((isInBox box).circumSphereCenter) ls

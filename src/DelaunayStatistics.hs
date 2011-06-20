@@ -49,13 +49,13 @@ calcErr gs = getErrorDist a b
     a = testDist gs
     b = testLogNorDist
 
-calcStat wall func lb hb = 
+calcStat sP wall func lb hb = 
   return $ (liftM (\(BinFreq x) -> x) err, a)
   where
     err = getErrorDist a b
     a     = distibrute start size nbin stat
     b     = discretize start size nbin func
-    stat  = map (avgHalfSize.getDEdges) $ findGrainsTree wall
+    stat  = map (avgHalfSize.getDEdges) $ findGrainsTree sP wall
     -- TODO Better boundary conditions
     start = lb
     size  = abs $ (hb - lb)/100
@@ -69,7 +69,7 @@ logNormal mu sigma x = a/b
   c = ((log x - mu)**2)/(2*sigma**2)
 
 getDEdges::Level3 -> [Vec3D]
-getDEdges (L3 p nei) = map (\(L2 pn face) -> p - pn) nei
+getDEdges (L3 p _ nei) = map (\(L2 pn _ face) -> p -pn) nei
 
 avgHalfSize::[Vec3D] -> Double
 avgHalfSize ls = sum/(fromIntegral $ 2*n)

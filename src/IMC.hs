@@ -27,9 +27,10 @@ import Data.Vec hiding (map, take, zipWith, length, head)
 import System.Random.Mersenne.Pure64
 import Data.Array.Diff (listArray, (!), elems, bounds, (//), DiffArray)
 import Control.Monad (liftM)
+import Data.IntMap (IntMap, empty)
 
 -- %%%%%%%%%% Internal dependences %%%%%%%%%%%
-import Math.DeUni (Box(..), isInBox, runDeWall, Simplex)
+import Math.DeUni (Box(..), isInBox, runDeWall, Simplex, PointPointer (..))
 import CommandLineInput (RandomSeed(..))
 import DelaunayStatistics (calcStat, printToFile)
 
@@ -38,17 +39,18 @@ import Debug.Trace
 debug :: Show a => String -> a -> a
 debug s x = trace (s ++ show x) x
 
-type ArrPoints = DiffArray Int Vec3D
+type ArrPoints = DiffArray PointPointer Vec3D
 data IMCPoints = IMCPoints { arr::ArrPoints 
                            , box::Box }
 
-imc::IMCPoints -> IORef PureMT -> (Double -> Double) -> (Double, Double) -> Double -> IO [Simplex]
+imc::IMCPoints -> IORef PureMT -> (Double -> Double) -> (Double, Double) -> Double -> IO (IntMap Simplex)
 imc imcP gen func (lb, hb) refErr = do
   newArr <- tossTheDice imcP gen
   let
-    ps = elems newArr
-    (wall, _) = runDeWall (box imcP) ps
-  (err, stat) <- calcStat wall func lb hb
+    (lbArr, hbArr) = bounds newArr
+    ps = [lbArr..hbArr]
+    (wall, _) = runDeWall (box imcP) newArr ps
+  (err, stat) <- calcStat newArr wall func lb hb
   print $ "err: " ++ show refErr ++ " -> " ++ show err
   let name = take 15 (show err) ++ dropWhile (/= 'e')  (show err)
   case err of
@@ -59,13 +61,13 @@ imc imcP gen func (lb, hb) refErr = do
           | x < 1e-3       = return wall
           | x > refErr     = imc imcP gen func (lb, hb) refErr
           | x <= refErr    = printToFile ("stat"++name++".txt") stat >> imc (imcP {arr=newArr}) gen func (lb, hb) x
-    Nothing -> return []
+    Nothing -> return empty
 
 
 tossTheDice::IMCPoints -> IORef PureMT -> IO ArrPoints
 tossTheDice imcP gen = do
-  let (lb, hb) = bounds (arr imcP)
-  ix       <- sampleFrom gen (uniform lb hb)
+  let (PointPointer lb, PointPointer hb) = bounds (arr imcP)
+  ix       <- liftM PointPointer $ sampleFrom gen (uniform lb hb)
   let vec  = boxFrac (box imcP) 0.5
   delta    <- getWavePointList gen stdUniform vec
   let  
@@ -99,7 +101,7 @@ getFirstRandomGrainDistribution gen targetNGrains avgVolume ratio = result
         
         result = do
           listP <- replicateM targetNGrains getPoint
-          let a = listArray (1::Int,targetNGrains) listP
+          let a = listArray (1::PointPointer, fromIntegral targetNGrains) listP
           return (IMCPoints a fullbox)
           
 calcBoxSize::Double -> (Double, Double, Double) -> Box

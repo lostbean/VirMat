@@ -15,7 +15,7 @@ Category:            Data, Math
 
 Executable virmat
     hs-source-dirs:     src
-    Build-Depends:      DeUni           -any
+    Build-Depends:      DeUni           >=0.2
                         , GLUT          -any
                         , OpenGL        -any
                         , Vec           -any
@@ -43,10 +43,10 @@ Executable virmat
     Other-modules:      CommandLineInput
                         GrainQuery
                         DelaunayStatistics
-                        OnionLayerControl
                         ShowData
                         Viewer3D
                         VoronoiBuilder
                         VTKGen
+                        TemplateVTKxml
     Extensions: 
     ghc-options:        -O
