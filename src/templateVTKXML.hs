@@ -90,7 +90,7 @@ renderScalarCellData name scalarData =
              NodeContent (ContentText $ T.unwords $ map (pack.show) scalarData) ]}),
       NodeContent (ContentText "\n")]}
 
-renderPoints::[Vec3D] -> Element
+renderPoints::[Maybe Vec3D] -> Element
 renderPoints points = 
   Element {
     elementName = Name {nameLocalName = "Points", nameNamespace = Nothing, namePrefix = Nothing},
@@ -109,7 +109,9 @@ renderPoints points =
              NodeContent (ContentText $ T.unwords $ map showVec points)] }),
       NodeContent (ContentText "\n")]}
   where
-    showVec (Vec3D x y z) = T.unwords [toTxt x, toTxt y, toTxt z]
+    showVec x = case x of
+      Just (Vec3D x y z) -> T.unwords [toTxt x, toTxt y, toTxt z]
+      Nothing            -> pack "0.0 0.0 0.0"
   
 renderCells::[Int] -> [Int] -> [Int] -> [Int] -> [Int] -> Element
 renderCells cellConn cellOffsets cellTypes faces faceOffsets = 

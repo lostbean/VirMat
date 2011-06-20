@@ -4,6 +4,8 @@ module VTKGen ( renderVTK
 import Control.Monad.State.Lazy
 import Data.XML.Types
 import Data.Vec (Vec3D)
+import qualified Data.IntMap as IM
+import Data.IntMap (IntMap)
 import qualified Text.XML.Enumerator.Document as X
 
 import VoronoiBuilder (VoronoiGrain(..), VoronoiFace(..))
@@ -14,7 +16,7 @@ import TemplateVTKxml
 type Render = State VTKRender
 
 data VTKRender = VTKRender
-                 { points       :: [Vec3D]
+                 { points       :: IntMap Vec3D
                  , pointPointer :: Int
                  , cellConn     :: [Int]
                  , cellOffset   :: [Int]
@@ -26,7 +28,7 @@ data VTKRender = VTKRender
                  deriving (Show)
                        
 initState = VTKRender
-                 { points       = []
+                 { points       = IM.empty
                  , pointPointer = 0
                  , cellConn     = []
                  , cellOffset   = []
@@ -43,11 +45,15 @@ renderVTK::[VoronoiGrain] -> Document
 renderVTK x = renderVTKDoc np nc [] dataCell p c
   where
     st = execState (mapM_ renderGrain x) initState
-    np = pointPointer st
+    np = max + 1
     nc = length $ cellOffset st
     --renderScalarPointData
     dataCell = (renderScalarCellData "scalar" [1..(fromIntegral nc)]):[]
-    p = renderPoints (points st)
+    
+    max = fst $ IM.findMax (points st)
+    ps = map (\i -> IM.lookup i (points st)) [0..max]
+    p = renderPoints (ps)
+    
     c = renderCells (cellConn st) (cellOffset st) (cellType st) (facesIx st) (faceOffset st)
 
 
@@ -69,15 +75,15 @@ renderAllFaces fs = do
   modify (\x -> x { facesIx = (nFaces:allFaces') ++ (facesIx x) })
   modify (\x -> x { cellOffset = (cellOffset x) ++ [(cellPointer x - 1)] })
 
-renderFace::[Simplex] -> Render [Int]
+renderFace::[(Int, Simplex)] -> Render [Int]
 renderFace ss = do
   pointer <- liftM pointPointer get
-  let psIx = [pointer..(pointer + length ss - 1)]
-      ps   = map circumSphereCenter ss
+  let ps   = map (\(i,x) -> (i, circumSphereCenter x)) ss
+      psIx = map fst ss
       np   = length ss
   modify (\x -> x { pointPointer = pointer + length ss })
-  modify (\x -> x { points = (points x) ++ ps })
-  modify (\x -> x { cellPointer = length ps + (cellPointer x) })
+  modify (\x -> x { points = (points x) `IM.union` (IM.fromList ps) })
+  modify (\x -> x { cellPointer = length psIx + (cellPointer x) })
   modify (\x -> x { cellConn = psIx ++ (cellConn x) })
   return (np:psIx)
 
