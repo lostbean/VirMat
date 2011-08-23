@@ -9,41 +9,40 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module GrainDistributionGenerator
+module Distributions.GrainSize.GrainDistributionGenerator
 ( getGrainBoxDistribution
 , getFullRandomGrainDistribution
+, getWavePointList
 , getRandomGen
 , DistributedPoints(..)
+, Point
 , calcBoxSize
 ) where
 
 import Control.Monad (replicateM, liftM, foldM)
 import Control.Monad.Loops (iterateUntil)
 import Control.Monad.ST (runST)
+import Data.Array.Diff (listArray, (!), elems, bounds, (//), DiffArray)
+import Data.IORef
 import Data.Random
 import Data.Random.RVar
 import Data.Random.Source.StdGen
---import Data.Random.Internal.Primitives
-
-import Data.IORef
 import Data.Vec hiding (map, take, zipWith, length, head)
 import System.Random.Mersenne.Pure64
-import Data.Array.IArray (listArray, indices, Array)
 
-
+import Math.DeUni (Box(..), isInBox, PointPointer (..), SetPoint)
 import Math.DeUni (Box(..), isInBox)
-import CommandLineInput (RandomSeed(..))
+import Douane.Import.Prompt.CommandLineInput (RandomSeed(..))
 
 
 import Debug.Trace
 debug :: Show a => String -> a -> a
 debug s x = trace (s ++ show x) x
 
+type Point = Vec3D
 
-
-data DistributedPoints = DistributedPoints Box [Vec3D]
-
-
+data DistributedPoints = DistributedPoints { box::Box
+                                           , setPoint::SetPoint }
 
 getGrainBoxDistribution::IORef PureMT -> Int -> Double -> Double -> (Double, Double, Double) -> IO DistributedPoints
 getGrainBoxDistribution gen targetNGrains avgVolume stdDev ratio = result
@@ -71,8 +70,9 @@ getGrainBoxDistribution gen targetNGrains avgVolume stdDev ratio = result
         getPoint x = (getWavePointList gen (normal 0 stdDev) (dx,dy,dz)) >>= (\a -> return $ a + x)
 
         addVarianceInsideBox x = iterateUntil (isInBox fullBox) (getPoint x)
-
-        result = mapM addVarianceInsideBox putGrainInBox >>= return.(DistributedPoints fullBox)
+        
+        toArr = listArray (1::PointPointer, fromIntegral targetNGrains)
+        result = mapM addVarianceInsideBox putGrainInBox >>= return.(DistributedPoints fullBox).toArr
 
 
 
@@ -86,8 +86,10 @@ getFullRandomGrainDistribution gen targetNGrains avgVolume ratio = result
         dz = (zMax box - zMin box)
 
         getPoint = getWavePointList gen stdUniform (dx, dy, dz)
+        
+        toArr = listArray (1::PointPointer, fromIntegral targetNGrains)
+        result = replicateM targetNGrains getPoint >>= return.(DistributedPoints box).toArr
 
-        result = replicateM targetNGrains getPoint >>= return.(DistributedPoints box)
 
 calcNGrainsIn1D::Int -> Int
 calcNGrainsIn1D n = round $ (fromIntegral n)**(1/3)

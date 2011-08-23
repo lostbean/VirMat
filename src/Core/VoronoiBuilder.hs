@@ -1,18 +1,5 @@
------------------------------------------------------------------------------
---
--- Module      :  VoronoiBuilder
--- Copyright   :
--- License     :  AllRightsReserved
---
--- Maintainer  :  Edgar Gomes
--- Stability   :  dev
--- Portability :
---
--- |
---
------------------------------------------------------------------------------
 
-module VoronoiBuilder
+module Core.VoronoiBuilder
 ( convertDT2Voronoi
 , findGrainsTree
 , Level1(..)
@@ -28,11 +15,11 @@ module VoronoiBuilder
 
 -- External modules
 import Data.Array.Diff (DiffArray, (!))
-import Data.Vec hiding (map, last)
-import Data.List (foldl',sortBy,(\\))
 import Data.IntMap (IntMap)
-import qualified Data.IntMap as IM
+import Data.List (foldl',sortBy,(\\))
+import Data.Vec hiding (map, last)
 import Maybe
+import qualified Data.IntMap as IM
 
 -- Internal modules
 import Math.DeUni (PointPointer, Simplex, setCellID, circumSphereCenter)

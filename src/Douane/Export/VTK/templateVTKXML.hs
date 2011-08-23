@@ -1,15 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
-module TemplateVTKxml
+module Douane.Export.VTK.TemplateVTKxml
        ( renderVTKDoc
        , renderScalarPointData
        , renderScalarCellData 
        , renderPoints
        , renderCells ) where
 
-import Data.XML.Types
-import qualified Data.Text as T
+import Data.List (intersperse)
 import Data.Text (Text, pack, append)
 import Data.Vec hiding (pack, map, append)
+import Data.XML.Types
+import qualified Data.Text as T
 
 toTxt::(Show a)=>a -> Text
 toTxt = pack.show
@@ -114,13 +115,14 @@ renderPoints points =
       Nothing            -> pack "0.0 0.0 0.0"
   
 renderCells::[Int] -> [Int] -> [Int] -> [Int] -> [Int] -> Element
-renderCells cellConn cellOffsets cellTypes faces faceOffsets = 
-  Element {
+renderCells cellConn cellOffsets cellTypes faces faceOffsets = Element {
     elementName = Name {nameLocalName = "Cells", nameNamespace = Nothing, namePrefix = Nothing},
     elementAttributes = [],
-    elementNodes = [
-      NodeContent (ContentText "\n"),
-      NodeElement (
+    elementNodes = intersperse (NodeContent (ContentText "\n")) full }
+  where
+    full = (fconn cellConn ++ foof cellOffsets ++ ftype cellTypes ++ fface faces ++ ffaceoff faceOffsets) 
+    fconn [] = [] 
+    fconn l = [NodeElement (
         Element {
            elementName = Name {nameLocalName = "DataArray", nameNamespace = Nothing, namePrefix = Nothing},
            elementAttributes = [
@@ -128,9 +130,10 @@ renderCells cellConn cellOffsets cellTypes faces faceOffsets =
              (Name {nameLocalName = "Name", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "connectivity"]),
              (Name {nameLocalName = "format", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "ascii"])],
            elementNodes = [
-             NodeContent (ContentText $ T.unwords $ map toTxt cellConn)] }),
-      NodeContent (ContentText "\n"),
-      NodeElement (
+             NodeContent (ContentText $ T.unwords $ map toTxt l)] })]
+              
+    foff [] = []
+    foof l = [NodeElement (
         Element {
            elementName = Name {nameLocalName = "DataArray", nameNamespace = Nothing, namePrefix = Nothing},
            elementAttributes = [
@@ -138,9 +141,10 @@ renderCells cellConn cellOffsets cellTypes faces faceOffsets =
              (Name {nameLocalName = "Name", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "offsets"]),
              (Name {nameLocalName = "format", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "ascii"])],
            elementNodes = [
-             NodeContent (ContentText $ T.unwords $ map toTxt cellOffsets)] }),
-      NodeContent (ContentText "\n"),
-      NodeElement (
+             NodeContent (ContentText $ T.unwords $ map toTxt l)] })]
+
+    ftype [] = []
+    ftype l = [NodeElement (
         Element {
            elementName = Name {nameLocalName = "DataArray", nameNamespace = Nothing, namePrefix = Nothing},
            elementAttributes = [
@@ -148,9 +152,10 @@ renderCells cellConn cellOffsets cellTypes faces faceOffsets =
              (Name {nameLocalName = "Name", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "types"]),
              (Name {nameLocalName = "format", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "ascii"])],
            elementNodes = [
-             NodeContent (ContentText $ T.unwords $ map toTxt cellTypes)] }),
-      NodeContent (ContentText "\n"),
-      NodeElement (
+             NodeContent (ContentText $ T.unwords $ map toTxt l)] })]
+      
+    fface [] = []
+    fface l = [NodeElement (
         Element {
            elementName = Name {nameLocalName = "DataArray", nameNamespace = Nothing, namePrefix = Nothing},
            elementAttributes = [
@@ -158,9 +163,10 @@ renderCells cellConn cellOffsets cellTypes faces faceOffsets =
              (Name {nameLocalName = "Name", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "faces"]),
              (Name {nameLocalName = "format", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "ascii"])],
            elementNodes = [
-             NodeContent (ContentText  $ T.unwords $ map toTxt faces)] }),
-      NodeContent (ContentText "\n"),
-      NodeElement (
+             NodeContent (ContentText  $ T.unwords $ map toTxt l)] })]
+      
+    ffaceoff [] = []
+    ffaceoff l = [NodeElement (
         Element {
            elementName = Name {nameLocalName = "DataArray", nameNamespace = Nothing, namePrefix = Nothing},
            elementAttributes = [
@@ -168,5 +174,4 @@ renderCells cellConn cellOffsets cellTypes faces faceOffsets =
              (Name {nameLocalName = "Name", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "faceoffsets"]),
              (Name {nameLocalName = "format", nameNamespace = Nothing, namePrefix = Nothing},[ContentText "ascii"])],
            elementNodes = [
-             NodeContent (ContentText  $ T.unwords $ map toTxt faceOffsets)]}),
-      NodeContent (ContentText "\n")]}
+             NodeContent (ContentText  $ T.unwords $ map toTxt l)]})]

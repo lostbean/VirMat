@@ -1,8 +1,7 @@
-
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module CommandLineInput
+module Douane.Import.Prompt.CommandLineInput
 ( JobRequest (..)
 , DistributionType (..)
 , OutputFile (..)
@@ -13,13 +12,13 @@ module CommandLineInput
 , parseArgs
 ) where
 
+import Control.Monad.Trans
+import Data.List
+import System.Posix
+import Text.Parsec.Prim hiding (try)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Error
 import Text.ParserCombinators.Parsec.Perm
-import Text.Parsec.Prim hiding (try)
-import System.Posix
-import Data.List
-import Control.Monad.Trans
 
 -- Data definition
 data JobRequest =
@@ -241,11 +240,13 @@ parseOutDir = do try ( do {maybeSep; string "-o"})
 
 
 -- >>>>>>>>>>>>> Fields of Others
-parseNum::(Read a) => Parser a            
-parseNum = try $ do maybeSep
-                    n <- many1 (digit <|> char '-' <|> char '.')
-                    return (read n)
+parseNum::(Read a) => Parser a
+parseNum = try $ do 
+  maybeSep
+  n <- many1 (digit <|> char '-' <|> char '.')
+  return (read n)
 
 parseHelp::Parser Bool
-parseHelp = do  try ( do {maybeSep; string "--help"})
-                return True
+parseHelp = do
+  try ( do {maybeSep; string "--help"})
+  return True

@@ -6,7 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 
-module GrainQuery
+module Distributions.GrainSize.GrainQuery
 ( getAreaGrain
 , getVolumeGrain
 , getTotalGrainVolume
@@ -17,7 +17,7 @@ module GrainQuery
 , Area   (getArea)
 ) where
 
-import VoronoiBuilder
+import Core.VoronoiBuilder
 import Data.Vec hiding (length, map, foldl)
 import Math.DeUni (Simplex(..))
 import Data.List (foldl')

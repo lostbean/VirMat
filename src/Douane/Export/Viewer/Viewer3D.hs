@@ -1,27 +1,26 @@
-
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
 
 
-module Viewer3D (
+module Douane.Export.Viewer.Viewer3D (
 showMap
 )where
 
 -- External modules
+import Control.Applicative ((<$>))
+import Control.Monad (liftM)
 import Data.Array
+import Data.IORef
+import Data.Vec --(Vec3D, Vec3I, Vec4I, dot, cross, norm, normSq)
+import GHC.Float
 import Graphics.Rendering.OpenGL hiding (normalize)
 import Graphics.UI.GLUT hiding (normalize)
-import GHC.Float
-import Data.Vec --(Vec3D, Vec3I, Vec4I, dot, cross, norm, normSq)
 import System
-import Data.IORef
-import Control.Monad (liftM)
-import Control.Applicative ((<$>))
 
 -- Internal modules
-import ShowData (show3D, Show3D, Tetrahedron3D, Renderable(..))
+import Douane.Export.Viewer.ShowData (show3D, Show3D, Tetrahedron3D, Renderable(..))
 import Math.DeUni (Box(xMax,xMin,yMax,yMin,zMax,zMin))
 
 

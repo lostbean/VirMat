@@ -1,35 +1,58 @@
------------------------------------------------------------------------------
---
--- Module      :  VoronoiBuilder
--- Copyright   :
--- License     :  AllRightsReserved
---
--- Maintainer  :  Edgar Gomes
--- Stability   :  dev
--- Portability :
---
--- |
---
------------------------------------------------------------------------------
-
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-
-module DelaunayStatistics
-( logNormal
+module Distributions.GrainSize.DelaunayStatistics
+( logNormal 
+, normal 
 , printToFile
+, printTargetToFile
 , calcStat
-, testDist
-, testLogNorDist
+, grainSize
+, anisoShape
+, nvizinho
+, DistributionFunc (..)
+, makeDistFunc
+, findGSList
 ) where
 
 -- External modules
-import Data.Vec (Vec3D, norm)
+import Data.Vec (Vec3D, norm, normalize, dot)
 import qualified Data.IntMap as IM
 import Control.Monad (liftM)
 
 -- Internal modules
-import VoronoiBuilder (findGrainsTree, Level1(..), Level2(..), Level3(..))
+import Core.VoronoiBuilder (findGrainsTree, Level1(..), Level2(..), Level3(..))
+import Math.DeUni ( Box(..)
+                  , Simplex (..)
+                  , Face (..)
+                  , Point
+                  , PointPointer (..)
+                  , SetPoint
+                  , SetSimplex )
+
+newtype BinFreq =
+  BinFreq Double
+  deriving (Num, Fractional, Floating, Ord, Eq, Show)
+
+data UniformBin = 
+  UniformBin
+  { hiBin   :: BinFreq
+  , lowBin  :: BinFreq
+  , binList :: [(Double, BinFreq)] }
+  deriving (Show) 
+                  
+data UniformHist = 
+  UniformHist
+  { startPos :: Double
+  , size     :: Double
+  , n_bin    :: Int
+  , bins     :: UniformBin }
+  deriving (Show)
+                            
+data DistributionFunc = 
+  DistFunc
+  { distFunc :: (Double -> Double)
+  , upperLim :: Double
+  , lowerLim :: Double }
 
 printToFile::FilePath -> UniformHist -> IO()
 printToFile file dist = writeFile file (lowtxt ++ bintxt ++ hitxt)
@@ -40,27 +63,39 @@ printToFile file dist = writeFile file (lowtxt ++ bintxt ++ hitxt)
   hiPos  = binPos (size dist) (startPos dist) (n_bin dist + 1)
   showBF = show.(\(BinFreq x) -> x)
 
-
-
-testDist gs = distibrute 0 0.2 200 $ map (avgHalfSize.getDEdges) gs
-testLogNorDist = discretize 0 0.2 200 (logNormal 1 0.5)
-calcErr gs = getErrorDist a b
+printTargetToFile::FilePath -> DistributionFunc -> IO()
+printTargetToFile name dF = printToFile name udist
   where
-    a = testDist gs
-    b = testLogNorDist
-
-calcStat sP wall func lb hb = 
-  return $ (liftM (\(BinFreq x) -> x) err, a)
-  where
-    err = getErrorDist a b
-    a     = distibrute start size nbin stat
-    b     = discretize start size nbin func
-    stat  = map (avgHalfSize.getDEdges) $ findGrainsTree sP wall
-    -- TODO Better boundary conditions
+    func  = distFunc dF
+    lb    = lowerLim dF
+    hb    = upperLim dF
+    udist = discretize start size nbin func
     start = lb
-    size  = abs $ (hb - lb)/100
+    size  = abs $ (hb - lb)/(fromIntegral nbin)
     nbin  = 100
     
+findGSList::SetPoint -> SetSimplex -> [Double]
+findGSList sP wall = map (grainSize.getDEdges) $ findGrainsTree sP wall 
+
+calcStat::SetPoint -> SetSimplex -> ([Vec3D] -> Double) -> DistributionFunc -> Maybe (Double, UniformHist)
+calcStat sP wall prop dF = 
+  liftM (\(BinFreq x) -> x) err >>= \x -> return (x,a)
+  where
+    func = distFunc dF
+    lb   = lowerLim dF
+    hb   = upperLim dF
+    err  = getErrorDist a b
+    a    = distibrute start size nbin stat
+    b    = discretize start size nbin func
+    stat = map (prop.getDEdges) $ findGrainsTree sP wall
+    -- TODO Better boundary conditions
+    start = lb
+    size  = abs $ (hb - lb)/(fromIntegral nbin)
+    nbin  = 100
+    
+getDEdges::Level3 -> [Vec3D]
+getDEdges (L3 p _ nei) = map (\(L2 pn _ face) -> p - pn) nei
+
 logNormal::Double -> Double -> Double -> Double
 logNormal mu sigma x = a/b 
   where
@@ -68,15 +103,29 @@ logNormal mu sigma x = a/b
   a = exp (-1*c)
   c = ((log x - mu)**2)/(2*sigma**2)
 
-getDEdges::Level3 -> [Vec3D]
-getDEdges (L3 p _ nei) = map (\(L2 pn _ face) -> p -pn) nei
+normal::Double -> Double -> Double -> Double
+normal mu sigma x = a/b 
+  where
+  b = (sigma*sqrt(2*pi))
+  a = exp (-1*c)
+  c = ((x - mu)**2)/(2*sigma**2)
 
-avgHalfSize::[Vec3D] -> Double
-avgHalfSize ls = sum/(fromIntegral $ 2*n)
+grainSize::[Vec3D] -> Double
+grainSize ls = sum / (2*n)
   where
   sum = foldl (\acc x -> (norm x) + acc) 0 ls 
-  n   = length ls
+  n   = fromIntegral.length $ ls
   
+anisoShape::Vec3D -> [Vec3D] -> Double
+anisoShape dir ls = sum / n
+  where
+  sum  = foldl (\acc x -> (ndir `dot` x) + acc) 0 ls 
+  ndir = normalize dir
+  n    = fromIntegral.length $ ls
+  
+nvizinho::[Vec3D] -> Double
+nvizinho ls = fromIntegral.length $ ls
+
 getErrorDist::UniformHist -> UniformHist -> Maybe BinFreq
 getErrorDist a b = if ( startPos a == startPos b && size a == size b && n_bin a == n_bin b )
   then Just $ deltaBins+h+l
@@ -87,21 +136,11 @@ getErrorDist a b = if ( startPos a == startPos b && size a == size b && n_bin a 
     l = ((hiBin.bins) a - (hiBin.bins) b)**2
     h = ((lowBin.bins) a - (lowBin.bins) b)**2
 
-newtype BinFreq = BinFreq Double deriving (Num, Fractional, Floating, Ord, Eq, Show)
-
-data UniformBin = UniformBin
-                  { hiBin::BinFreq
-                  , lowBin::BinFreq
-                  , binList::[(Double, BinFreq)] }
-                  deriving (Show) 
-                  
-data UniformHist = UniformHist
-                   { startPos::Double
-                   , size::Double
-                   , n_bin::Int
-                   , bins::UniformBin }
-                   deriving (Show)
-                            
+makeDistFunc::(Double -> Double) -> (Double, Double) -> DistributionFunc
+makeDistFunc func (a, b)
+  | a > b     = DistFunc { distFunc = func, upperLim = a, lowerLim = b }
+  | otherwise = DistFunc { distFunc = func, upperLim = b, lowerLim = a }
+              
 distibrute::Double -> Double -> Int -> [Double] -> UniformHist
 distibrute start size nbin ds = UniformHist
   { startPos = start

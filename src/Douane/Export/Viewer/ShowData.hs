@@ -9,14 +9,14 @@
 
 
 -- Module definition
-module ShowData where
+module Douane.Export.Viewer.ShowData where
 
 -- external imports
-import Graphics.Rendering.OpenGL (GLfloat, Vertex3, Color4, PrimitiveMode)
-import Graphics.UI.GLUT hiding (Face, Color)
-import Data.Vec hiding (map, head, scale, translate, zipWith, length)
 import Data.Array.Diff (DiffArray, (!))
 import Data.List ((!!))
+import Data.Vec hiding (map, head, scale, translate, zipWith, length)
+import Graphics.Rendering.OpenGL (GLfloat, Vertex3, Color4, PrimitiveMode)
+import Graphics.UI.GLUT hiding (Face, Color)
 
 -- internal imports
 import Math.DeUni
@@ -29,7 +29,7 @@ import Math.DeUni
     , circumSphereCenter
     , refND
     )
-import VoronoiBuilder
+import Core.VoronoiBuilder
 --import DeHull (SimplexHullFace, facePoints, outterND)
 
 type SetPoint = DiffArray PointPointer Vec3D

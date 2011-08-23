@@ -5,34 +5,32 @@
 
 module Main where
 
-import System.Environment
-import Text.Printf
-import Control.Monad
-
+import Core.IMC
+import Core.VoronoiBuilder
+import Distributions.GrainSize.DelaunayStatistics
+import Distributions.GrainSize.GrainDistributionGenerator
+import Distributions.GrainSize.GrainQuery
+import Distributions.Texture.ODFSampling
+import Douane.Export.VTK.VTKGenTetra
+import Douane.Export.Viewer.ShowData hiding (Box3D, SetPoint)
+import Douane.Export.Viewer.Viewer3D
+import Douane.Import.Prompt.CommandLineInput
 import Math.DeUni
-import Viewer3D
-import VoronoiBuilder
-import GrainQuery
-import ShowData hiding (Box3D)
-import GrainDistributionGenerator
-import CommandLineInput
-import DelaunayStatistics
-import VTKGen
-import IMC
+import qualified Distributions.GrainSize.DelaunayStatistics as DS
 
-
-import qualified Data.Map as Map
-import qualified Data.IntMap as IM
-import Data.Maybe (isJust)
-import Data.List (foldl',sortBy,(\\),nub)
-import Maybe
-import Data.Vec (Vec3D)
+import Control.Monad
 import Data.Array.Diff (listArray, (!), elems, bounds, (//), DiffArray)
-
-
+import Data.List (foldl',sortBy,(\\),nub)
+import Data.Maybe (isJust)
 import Data.Random
 import Data.Random.RVar
+import Data.Vec (Vec3D)
+import Maybe
 import System.CPUTime
+import System.Environment
+import Text.Printf
+import qualified Data.IntMap as IM
+import qualified Data.Map as Map
 
 import Debug.Trace
 debug :: Show a => String -> a -> a
@@ -48,50 +46,48 @@ main = do
       vol  = targetMeanVolume jobReq
       var  = targetVariance jobReq
       anis = anisotropyShapeRatio jobReq
-    (DistributedPoints box ps) <- case distrType jobReq of
+    pdist@(DistributedPoints box arr) <- case distrType jobReq of
       FullDistribution  -> getFullRandomGrainDistribution gen n vol anis
       InBoxDistribution -> getGrainBoxDistribution gen n vol var anis
       --OnionDistribution -> getOnionDistribution gen n vol var anis 10000000000
 
     let
-        l::PointPointer
-        l = fromIntegral $ length ps
-        arr = listArray (1, l) ps
-        pset = [1..l]
-        hull         = runDeHull box arr pset
-        (wall,wallSt)     = runDeWall box arr pset
-        inBoxSimplex = onlySimpleInBox box wall
-        grains       = convertDT2Voronoi arr inBoxSimplex
+      (lb,hb)       = bounds arr
+      pset          = [lb..hb]
+      hull          = runDeHull box arr pset
+      (wall,wallSt) = runDeWall box arr pset
+      inBoxSimplex  = onlySimpleInBox box wall
+      grains        = convertDT2Voronoi arr inBoxSimplex
 
     putStrLn "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     putStrLn $ "Box: " ++ show box
-    putStrLn $ "Number of gen. points: "  ++ show (length ps)
+    putStrLn $ "Number of gen. points: "  ++ show (hb-lb+1)
     putStrLn $ "Number of gen. simplex: " ++ show (IM.size wall)
     putStrLn $ "Number of gen. grains: "  ++ show (length grains)
     putStrLn $ "Average grain volume: " ++ (show.getVolume.getAverageGrainVolume) grains
     putStrLn $ "Std Deviation of grain volume: " ++ (show.getVolume.getStdDeviationGrainVolume) grains
     putStrLn "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
             
-    --print wallSt
-    
-    let oneG = take 2 grains
     writeVTKfile "micro.vtu" grains
+    let 
+      binorm x = DS.normal 1.5 0.5 x --(DelaunayStatistics.normal 1.5 0.5 x) + (DelaunayStatistics.normal 5 0.7 x)
+      targetdist = makeDistFunc binorm (0, 20)
+    printTargetToFile "stat_target.txt" targetdist   
     
-    printToFile "stat_target.txt" testLogNorDist
+    (newWall, newSt) <- imc pdist gen targetdist
+    let newArr = Math.DeUni.setPoint newSt
+        newGrains = onlySimpleInBox box newWall
     
-    fstArr <- getFirstRandomGrainDistribution gen n vol (1,1,1)
-    newWall <- imc fstArr gen (logNormal 1 0.5) (0, 20) (-1)
+    testeIMCODF (findGSList newArr newWall)
+    writeVTKfile "finalMicro.vtu" (convertDT2Voronoi newArr newGrains)    
     
-    --printToFile "stat.new.txt" $ (testDist.(findGrainsTree newArr)) newWall    
-    --putStrLn $ "NW - Number of simplex: " ++ show (length newWall)
-        
     case outputFile jobReq of
       OutputFile file types -> do
         writeFile file ((getHeader jobReq) ++ (concatMap (printGrainInfo grains) (nub types)))
       _                     -> return ()
 
 
-    let render t = map (render3DMC arr box ps wall) (nub t) in case showIn3D jobReq of
+    let render t = map (render3DMC newArr box (elems newArr) newWall) (nub t) in case showIn3D jobReq of
       ShowAll t    -> showMap (render t) box
       ShowOnly t i -> showMap (render t) box
       _            -> return ()

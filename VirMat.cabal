@@ -40,13 +40,6 @@ Executable virmat
 
     Main-is:            Main.hs
     Buildable:          True
-    Other-modules:      CommandLineInput
-                        GrainQuery
-                        DelaunayStatistics
-                        ShowData
-                        Viewer3D
-                        VoronoiBuilder
-                        VTKGen
-                        TemplateVTKxml
+    Other-modules:      
     Extensions: 
     ghc-options:        -O

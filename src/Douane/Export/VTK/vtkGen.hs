@@ -1,16 +1,16 @@
-module VTKGen ( renderVTK
+module Douane.Export.VTK.VTKGen ( renderVTK
               , writeVTKfile ) where
 
 import Control.Monad.State.Lazy
-import Data.XML.Types
-import Data.Vec (Vec3D)
-import qualified Data.IntMap as IM
 import Data.IntMap (IntMap)
+import Data.Vec (Vec3D)
+import Data.XML.Types
+import qualified Data.IntMap as IM
 import qualified Text.XML.Enumerator.Document as X
 
-import VoronoiBuilder (VoronoiGrain(..), VoronoiFace(..))
+import Core.VoronoiBuilder (VoronoiGrain(..), VoronoiFace(..))
+import Douane.Export.VTK.TemplateVTKxml
 import Math.DeUni (Simplex, circumSphereCenter)
-import TemplateVTKxml
 
 
 type Render = State VTKRender
@@ -42,13 +42,13 @@ writeVTKfile::FilePath -> [VoronoiGrain] -> IO ()
 writeVTKfile name gs = X.writeFile name (renderVTK gs)
 
 renderVTK::[VoronoiGrain] -> Document
-renderVTK x = renderVTKDoc np nc [] dataCell p c
+renderVTK x = renderVTKDoc np nc dataPoint dataCell p c
   where
     st = execState (mapM_ renderGrain x) initState
     np = max + 1
     nc = length $ cellOffset st
-    --renderScalarPointData
-    dataCell = (renderScalarCellData "scalar" [1..(fromIntegral nc)]):[]
+    dataPoint = (renderScalarPointData "Pscalar" [0..(fromIntegral np)]):[]
+    dataCell = (renderScalarCellData "Cscalar" [1..(fromIntegral nc)]):[]
     
     max = fst $ IM.findMax (points st)
     ps = map (\i -> IM.lookup i (points st)) [0..max]
