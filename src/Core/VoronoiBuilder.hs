@@ -14,30 +14,31 @@ module Core.VoronoiBuilder
 ) where
 
 -- External modules
-import Data.Array.Diff (DiffArray, (!))
-import Data.IntMap (IntMap)
-import Data.List (foldl',sortBy,(\\))
-import Data.Vec hiding (map, last)
-import Maybe
 import qualified Data.IntMap as IM
+import Data.IntMap (IntMap)
+import qualified Data.Vector as Vec
+import Data.Vector (Vector, (!))
+import Data.List (foldl',sortBy,(\\))
+import Data.Maybe
 
--- Internal modules
-import Math.DeUni (PointPointer, Simplex, setCellID, circumSphereCenter)
+import Hammer.Math.Vector hiding (Vector)
 
+import DeUni.Dim3.Base3D
+import DeUni.Types
 
-type SetPoint = DiffArray PointPointer Vec3D
 
 -- | Main Fucntion
 convertDT2Voronoi sP = (makeGrain sP).(findGrainsTree sP)
 
+type Simplex = S2 Point3D
 
 -- |Recursive data tree for constructe grain structure.
 --  L3 (level three) - Simplex with a commun vertex, such a vertex is the center of a grain.
 --  L2 (level two) - Simplex with a commun vertex - vertex pair, such a a pair defines a face.
 --  L3 (level one) - Simplex with a commun vertex, such a vertex is the edge of a face (triple junction).
-data Level1 = L1 Vec3D PointPointer [(Int, Simplex)]
-data Level2 = L2 Vec3D PointPointer [Level1]
-data Level3 = L3 Vec3D PointPointer [Level2]
+data Level1 = L1 Vec3 PointPointer [(Int, Simplex)]
+data Level2 = L2 Vec3 PointPointer [Level1]
+data Level3 = L3 Vec3 PointPointer [Level2]
    
 instance Show Level3 where
   show (L3 _ id x) = "\n    L3: " ++ (show id) ++ (show x)
@@ -52,7 +53,7 @@ findNode blacklist = foldl' func []
     where
     func acc x =
             let
-                (a, b, c, d) = (setCellID.snd) x
+                (a, b, c, d) = (tetraPoints.snd) x
                 cellIDlist = [a, b, c, d]
                 cleanList = map (\id -> (id, x)) (cellIDlist \\ blacklist)
             in  cleanList ++ acc
@@ -68,11 +69,11 @@ sortGroup = groupOrd.(sortBy comp)
             where
                 (store, rest) = span (\a -> fst x == fst a) ls
 
-findGrainsTree::SetPoint -> (IntMap Simplex) -> [Level3]
+findGrainsTree::SetPoint Point3D -> (IntMap Simplex) -> [Level3]
 findGrainsTree sP = (level2to3 []).(level1to2 []).(calcLevelOne []).(IM.toList)
   where
     calcLevelOne::[PointPointer] -> [(Int, Simplex)] -> [Level1]
-    calcLevelOne blacklist = (map (\(x,y) -> L1 (sP!x) x y)).sortGroup.(findNode blacklist)
+    calcLevelOne blacklist = (map (\(x,y) -> L1 (sP!.x) x y)).sortGroup.(findNode blacklist)
 
     level1to2::[PointPointer] -> [Level1] -> [Level2]
     level1to2 blacklist = map (\(L1 vec id x) -> L2 vec id (calcLevelOne (id:blacklist) x))
@@ -89,13 +90,13 @@ findGrainsTree sP = (level2to3 []).(level1to2 []).(calcLevelOne []).(IM.toList)
 
 
 data VoronoiGrain = VoronoiGrain
-   { grainCenter   :: Vec3D
+   { grainCenter   :: Vec3
    , grainCenterIx :: PointPointer
    , faces         :: [VoronoiFace]
    }
 
 data VoronoiFace = VoronoiFace
-   { faceTo   :: Vec3D
+   { faceTo   :: Vec3
    , faceToIx :: PointPointer
    , edges    :: [(Int, Simplex)]
    }
@@ -109,7 +110,7 @@ instance Show VoronoiFace where
     show f = "face to grain " ++ show (faceTo f) ++ " -> " ++ (show $ map (circumSphereCenter.snd) (edges f))
 
 
-buildFace::SetPoint -> Level2 -> Maybe VoronoiFace
+buildFace::SetPoint Point3D -> Level2 -> Maybe VoronoiFace
 buildFace sP (L2 vec id rc ) = sequence rc >>= makePokerFace >>= makeFace
     where
         makeFace e = return $ VoronoiFace vec id e
@@ -120,7 +121,7 @@ buildFace sP (L2 vec id rc ) = sequence rc >>= makePokerFace >>= makeFace
                 Just xs' -> Just (ls:xs')
                 _        -> Nothing
 
-buildGrain::SetPoint -> Level3 -> Maybe VoronoiGrain
+buildGrain::SetPoint Point3D -> Level3 -> Maybe VoronoiGrain
 buildGrain sP (L3 vec id fs ) = sequence fs >>= makeGrain
     where
         makeGrain f = return $ VoronoiGrain vec id f
@@ -137,7 +138,7 @@ buildGrain sP (L3 vec id fs ) = sequence fs >>= makeGrain
             _        -> Nothing
 
 
-makeGrain::SetPoint -> [Level3] -> [VoronoiGrain]
+makeGrain::SetPoint Point3D -> [Level3] -> [VoronoiGrain]
 makeGrain sP = mapMaybe (buildGrain sP)
 
 

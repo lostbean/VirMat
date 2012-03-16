@@ -15,19 +15,16 @@ module Distributions.GrainSize.DelaunayStatistics
 ) where
 
 -- External modules
-import Data.Vec (Vec3D, norm, normalize, dot)
+import Hammer.Math.Vector hiding (Vector)
+import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 import Control.Monad (liftM)
 
 -- Internal modules
 import Core.VoronoiBuilder (findGrainsTree, Level1(..), Level2(..), Level3(..))
-import Math.DeUni ( Box(..)
-                  , Simplex (..)
-                  , Face (..)
-                  , Point
-                  , PointPointer (..)
-                  , SetPoint
-                  , SetSimplex )
+import DeUni.Types
+
+type SetSimplex3D = IntMap (S2 Point3D)
 
 newtype BinFreq =
   BinFreq Double
@@ -74,10 +71,10 @@ printTargetToFile name dF = printToFile name udist
     size  = abs $ (hb - lb)/(fromIntegral nbin)
     nbin  = 100
     
-findGSList::SetPoint -> SetSimplex -> [Double]
+findGSList::SetPoint Point3D -> SetSimplex3D -> [Double]
 findGSList sP wall = map (grainSize.getDEdges) $ findGrainsTree sP wall 
 
-calcStat::SetPoint -> SetSimplex -> ([Vec3D] -> Double) -> DistributionFunc -> Maybe (Double, UniformHist)
+calcStat::SetPoint Point3D -> SetSimplex3D -> ([Vec3] -> Double) -> DistributionFunc -> Maybe (Double, UniformHist)
 calcStat sP wall prop dF = 
   liftM (\(BinFreq x) -> x) err >>= \x -> return (x,a)
   where
@@ -93,8 +90,8 @@ calcStat sP wall prop dF =
     size  = abs $ (hb - lb)/(fromIntegral nbin)
     nbin  = 100
     
-getDEdges::Level3 -> [Vec3D]
-getDEdges (L3 p _ nei) = map (\(L2 pn _ face) -> p - pn) nei
+getDEdges::Level3 -> [Vec3]
+getDEdges (L3 p _ nei) = map (\(L2 pn _ face) -> p &- pn) nei
 
 logNormal::Double -> Double -> Double -> Double
 logNormal mu sigma x = a/b 
@@ -110,20 +107,20 @@ normal mu sigma x = a/b
   a = exp (-1*c)
   c = ((x - mu)**2)/(2*sigma**2)
 
-grainSize::[Vec3D] -> Double
+grainSize::[Vec3] -> Double
 grainSize ls = sum / (2*n)
   where
   sum = foldl (\acc x -> (norm x) + acc) 0 ls 
   n   = fromIntegral.length $ ls
   
-anisoShape::Vec3D -> [Vec3D] -> Double
+anisoShape::Vec3 -> [Vec3] -> Double
 anisoShape dir ls = sum / n
   where
-  sum  = foldl (\acc x -> (ndir `dot` x) + acc) 0 ls 
+  sum  = foldl (\acc x -> (ndir &. x) + acc) 0 ls 
   ndir = normalize dir
   n    = fromIntegral.length $ ls
   
-nvizinho::[Vec3D] -> Double
+nvizinho::[Vec3] -> Double
 nvizinho ls = fromIntegral.length $ ls
 
 getErrorDist::UniformHist -> UniformHist -> Maybe BinFreq
@@ -181,6 +178,3 @@ discretize start size nbin fdist = UniformHist
     uniBin = UniformBin { hiBin=0, lowBin=0, binList=bins }
     pos id = binPos size start id
                         
-                        
-                        
-             

@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Douane.Import.MTF.MTMDiscreteODFReader
+module IO.Import.MTF.MTMDiscreteODFReader
 ( parseMTMDiscODF
 )where
 

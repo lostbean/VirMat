@@ -16,7 +16,7 @@ import Data.Random
 import Data.Random.RVar
 import Data.Random.Source.StdGen
 import Data.Vector ((!),Vector, (//))
-import IO
+import System.IO
 import System.Random.Mersenne.Pure64
 import qualified Data.IntMap as IM
 import qualified Data.List as L
@@ -24,8 +24,7 @@ import qualified Data.Vector as V
 
 -- Internal modules
 import Distributions.Texture.DiscreteODF
-import Douane.Export.VTK.VTKODFWriter
-import Douane.Import.MTF.MTMDiscreteODFReader
+import IO.Import.MTF.MTMDiscreteODFReader
 
 import Debug.Trace
 debug :: Show a => String -> a -> a
@@ -204,7 +203,7 @@ testePVH = do
       dist = map (posToEuler df') $ goUpStairs df' 200000
       dist'= distributeOrientations dist 5 ((0,19),(0,19),(0,19))
   print $ length dist    
-  writeVTKfile "/Users/edgar/Desktop/regenPVH.vti" dist'
+  --writeVTKfile "/Users/edgar/Desktop/regenPVH.vti" dist'
                     
 teste = do   
   df <- parseMTMDiscODF "../../ParaView/AODF.001"
@@ -213,7 +212,7 @@ teste = do
   let ls'= catMaybes ls
       dist'= distributeOrientations ls' 5 ((0,19),(0,19),(0,19))
   print $ length ls'    
-  writeVTKfile "/Users/edgar/Desktop/regen.vti" dist'                    
+  --writeVTKfile "/Users/edgar/Desktop/regen.vti" dist'                    
   
 testeIMCODF gs = do  
   df <- parseMTMDiscODF "AODF.001"
@@ -228,7 +227,7 @@ imcODF gen df gs = do
       fstDist = distributeWeightedOrientations fstTex 5 ((0,19),(0,19),(0,19))
       fstTex = V.zip ls' nGS
   print $ V.length ls'    
-  writeVTKfile "ODFInit.vti" fstDist
+  --writeVTKfile "ODFInit.vti" fstDist
   case errorDiscODF (normalizeODF df) (normalizeODF fstDist) of
     Just fstErr -> func fstTex fstErr
     _ -> error "REMOVE-MEs"
@@ -249,7 +248,7 @@ imcODF gen df gs = do
               | err > refErr     = func tex refErr
               | err <= refErr    = do
                 print ("err: " ++ show refErr)
-                writeVTKfile ("ODF_" ++ name err ++ ".vti") dist 
+                --writeVTKfile ("ODF_" ++ name err ++ ".vti") dist 
                 func tex' err
         Nothing -> func tex refErr                    
     
@@ -282,7 +281,8 @@ printPHVOrig = do
   ls <- mapM (mapM readIO) w :: IO [[Double]]
   let euler = map (\[a,b,c]->(a,b,c)) ls
   let dist = distributeOrientations euler 5.0 ((0,19),(0,19),(0,19))
-  writeVTKfile "/Users/edgar/Desktop/PVH.vti" dist
+  print "LALA"
+  --writeVTKfile "/Users/edgar/Desktop/PVH.vti" dist
 
     
 sampleA = DiscODF { step=5, nPHI1 = 5, nPHI = 5, nPHI2 = 5, sPHI1 = 0, sPHI = 0, sPHI2 = 0, odf = V.generate (5*5*5) (\_ -> 1) }

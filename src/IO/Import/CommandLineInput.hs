@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Douane.Import.Prompt.CommandLineInput
+module IO.Import.CommandLineInput
 ( JobRequest (..)
 , DistributionType (..)
 , OutputFile (..)
@@ -14,7 +14,7 @@ module Douane.Import.Prompt.CommandLineInput
 
 import Control.Monad.Trans
 import Data.List
-import System.Posix
+--import System.Posix
 import Text.Parsec.Prim hiding (try)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Error
@@ -34,9 +34,8 @@ data JobRequest =
     } deriving (Show)
 
 data DistributionType =
-    FullDistribution
-  | InBoxDistribution  
-  | OnionDistribution 
+    RandomDistribution
+  | PackedDistribution
     deriving (Show, Eq)
              
 data OutputFile =
@@ -79,7 +78,7 @@ help = "\nVirMat help!\n\
 \        \"-voronoi\": \n\
 \    \n\
 \    distribution parameters:\n\
-\        generqtor type: \"full\", \"inbox\", \"onion\" \n\
+\        generqtor type: \"random\", \"packed\" \n\
 \        \"n=\": numbers of grains (upper limit)\n\
 \        \"vol=\", \"radius=\" or \"diameter=\": grain size average\n\
 \            \"s2=\": square variance; default = 1.0\n\
@@ -149,9 +148,8 @@ parseJobRequest = do try (do {maybeSep; string "-voronoi";})
 
 -- Parse and cast the fields
 parseDistributionType::Parser DistributionType
-parseDistributionType = do try ( do {maybeSep; string "full" ; return FullDistribution ;} )
-                       <|> try ( do {maybeSep; string "inbox"; return InBoxDistribution;} )
-                       <|> try ( do {maybeSep; string "onion"; return OnionDistribution;} )
+parseDistributionType = do try ( do {maybeSep; string "random"; return RandomDistribution;} )
+                       <|> try ( do {maybeSep; string "packed"; return PackedDistribution;} )
 
 -- Parse and cast the fields
 parseNGrains::Parser Int

@@ -1,4 +1,4 @@
-module Douane.Export.VTK.VTKODFWriter
+module IO.Export.VTK.VTKODFRender
        ( renderVTK
        , writeVTKfile )
        
@@ -9,7 +9,7 @@ import Data.XML.Types
 import qualified Text.XML.Enumerator.Document as X
 
 import Distributions.Texture.DiscreteODF ( DiscODF, step, nPHI1, nPHI, nPHI2, sPHI1, sPHI, sPHI2, odf )
-import Douane.Export.VTK.TemplateVTKXMLStruc
+import IO.Export.VTK.TemplateVTKXMLStruc
 
                  
 writeVTKfile::FilePath -> DiscODF -> IO ()

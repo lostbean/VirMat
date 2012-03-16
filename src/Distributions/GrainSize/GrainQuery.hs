@@ -18,8 +18,8 @@ module Distributions.GrainSize.GrainQuery
 ) where
 
 import Core.VoronoiBuilder
-import Data.Vec hiding (length, map, foldl)
-import Math.DeUni (Simplex(..))
+import Hammer.Math.Vector hiding (Vector)
+import DeUni.Dim3.Base3D
 import Data.List (foldl')
 
 import Debug.Trace
@@ -33,7 +33,7 @@ getVolumeGrain::VoronoiGrain -> Volume
 getVolumeGrain grain = Volume $ abs (volume / 3)
     where
         volume        = foldl' (\a b -> a + (prismVolume b)) 0 (faces grain)
-        prismVolume f = (normal `dot` centroid) * (getArea area)
+        prismVolume f = (normal &. centroid) * (getArea area)
           where area   = getFaceArea normal f
                 normal = getNormalToFace grain f
                 centroid = getCentroid (map (circumSphereCenter.snd) (edges f))
@@ -46,31 +46,31 @@ getAreaGrain grain = foldl' (\a b -> a + (getArea b)) (Area 0) (faces grain)
 -- It assume that the edge pairs are given in a oriented sequnce, e.g. (P0,P1,P2 .... Pn)
 -- $A(\Delta)=\dfrac{1}{2}(v_{1}-v_{0})\times(v_{2}-v_{0})$
 -- $A(\Omega)=\dfrac{1}{2}n\cdot{\displaystyle \sum_{i=0}^{i-1}}(v_{i}\times v_{i+1})$ 
-getFaceArea::Vec3D -> VoronoiFace -> Area
+getFaceArea::Vec3 -> VoronoiFace -> Area
 getFaceArea normal face = debug ("area: " ++ show face ++ " :--> ") area
     where
-        area    = Area $ abs $ 0.5 * (normal `dot` (sumTri vs))
+        area    = Area $ abs $ 0.5 * (normal &. (sumTri vs))
         vs      = map (circumSphereCenter.snd) (edges face)
         errFace = error "Error: Malformed face - trying to define a face with less than 3 points."
         -- the result will not make sense if the list conteins less than 3 points
-        sumTri::[Vec3D] -> Vec3D
+        sumTri::[Vec3] -> Vec3
         sumTri []       = errFace
         sumTri [_,_]    = errFace
         sumTri xt@(a:_) = (thunkSum xt) a
           where
-          thunkSum::[Vec3D] -> (Vec3D -> Vec3D)  
-          thunkSum (a1:a2:as) = ((pack $ (unpack a1) `cross` (unpack a2)) +).(thunkSum (a2:as))
+          thunkSum::[Vec3] -> (Vec3 -> Vec3)  
+          thunkSum (a1:a2:as) = ((a1 &^ a2) &+).(thunkSum (a2:as))
           -- boundary condition for a non empty list set
-          thunkSum [a]        = \x -> pack $ (unpack a) `cross` (unpack x)
+          thunkSum [a]        = \x -> a &^ x
           thunkSum []         = errFace
 
-getNormalToFace::VoronoiGrain -> VoronoiFace -> Vec3D
-getNormalToFace g f = normalize $ (faceTo f) - (grainCenter g)
+getNormalToFace::VoronoiGrain -> VoronoiFace -> Vec3
+getNormalToFace g f = normalize $ (faceTo f) &- (grainCenter g)
 
-getCentroid::[Vec3D] -> Vec3D
-getCentroid [] = Vec3D 0 0 0
-getCentroid xt@(x:xs) = (foldl' (+) x xs) / (Vec3D k k k)
-  where k = fromIntegral $ length xt
+getCentroid::[Vec3] -> Vec3
+getCentroid [] = zero
+getCentroid xt@(x:xs) = (foldl' (&+) x xs) &* k
+  where k = 1 / (fromIntegral $ length xt)
         
 getTotalGrainVolume::[VoronoiGrain] -> Volume
 getTotalGrainVolume = foldl' (\acc x -> (getVolumeGrain x) + acc) 0

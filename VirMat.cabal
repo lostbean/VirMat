@@ -1,6 +1,6 @@
 Name:                VirMat
-Version:             0.2
-License:             BSD3
+Version:             0.3
+License:             GPL-3
 License-file:        ""
 Author:              Edgar Gomes de Araujo
 Maintainer:          Edgar Gomes de Araujo <talktoedgar@gmail.com>
@@ -16,30 +16,21 @@ Category:            Data, Math
 Executable virmat
     hs-source-dirs:     src
     Build-Depends:      DeUni           >=0.2
-                        , GLUT          -any
-                        , OpenGL        -any
-                        , Vec           -any
-                        , array         -any
-                        , base          -any
-                        , containers    -any
-                        , haskell98     -any
-                        , mersenne-random-pure64 -any
-                        , monad-loops   -any
-                        , mtl           -any
-                        , parsec        >=3
-                        , statistics    -any
-                        , transformers  -any
-                        , unix          -any
-                        , vector        -any
-                        , random-fu     -any
-                        , random-source >=0.2
-                        , diffarray     -any
-                        , text          -any
-                        , xml-types     -any
-                        , xml-enumerator        -any
+                      , hammer          -any
+                      , base            -any
+                      , containers      -any
+                      , mersenne-random-pure64 -any
+                      , monad-loops     -any
+                      , mtl             -any
+                      , parsec          >=3
+                      , statistics      -any
+                      , transformers    -any
+                      , vector          -any
+                      , random-fu       -any
+                      , random-source   >=0.2
 
     Main-is:            Main.hs
     Buildable:          True
     Other-modules:      
     Extensions: 
-    ghc-options:        -O
+    ghc-options:        -O2 -rtsopts -auto-all -caf-all
