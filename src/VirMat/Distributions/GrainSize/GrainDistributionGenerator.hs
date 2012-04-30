@@ -5,12 +5,12 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Distributions.GrainSize.GrainDistributionGenerator
+module VirMat.Distributions.GrainSize.GrainDistributionGenerator
 ( genFullRandomGrainDistribution
 , genPoint
-, getRandomGen
 , DistributedPoints(..)
 , calcBoxSize
+, defRatio
 ) where
 
 import Control.Monad (replicateM, liftM, foldM)
@@ -29,7 +29,9 @@ import DeUni.Types
 import DeUni.Dim3.Base3D
 import DeUni.Dim2.Base2D
 
-import IO.Import.CommandLineInput (RandomSeed(..))
+import VirMat.Distributions.GrainSize.StatTools
+import VirMat.IO.Import.Types
+import VirMat.Core.Sampling
 
 data DistributedPoints a =
   DistributedPoints { box      ::Box a
@@ -37,19 +39,23 @@ data DistributedPoints a =
 
 
 class (AlgLin.Vector v, AlgLin.Pointwise v)=> GenRandom v where
-  type Ratio v                   :: *
-  calcBoxSize                    :: Double -> Ratio v -> Box v
-  boxDim                         :: Box v -> v
-  genPoint                       :: IORef PureMT -> RVar Double -> IO v
+  type Ratio v :: *
+  defRatio     :: Ratio v     
+  calcBoxSize  :: Double -> Ratio v -> Box v
+  boxDim       :: Box v -> v
+  genPoint     :: IORef PureMT -> RVar Double -> IO v
+  
        
 
 instance GenRandom Point2D where
   type Ratio Point2D = (Double, Double)
   
+  defRatio = (1, 1)
+  
   calcBoxSize avgVolume (xRatio, yRatio) = let
     refRatio = xRatio
     k1       = yRatio/refRatio
-    a        = (avgVolume/k1)**(1/2)
+    a        = sqrt (avgVolume/k1)
     in Box2D {xMax2D = a, xMin2D = 0, yMax2D = a*k1, yMin2D = 0}
 
   boxDim Box2D{..} = let
@@ -66,6 +72,8 @@ instance GenRandom Point2D where
 
 instance GenRandom Point3D where
   type Ratio Point3D = (Double, Double, Double)
+  
+  defRatio = (1, 1, 1)
   
   calcBoxSize avgVolume (xRatio, yRatio, zRatio) =
     let
@@ -88,25 +96,25 @@ instance GenRandom Point3D where
     b <- sampleFrom gen f
     c <- sampleFrom gen f
     return $ Vec3 a b c
-
-
-genFullRandomGrainDistribution::(GenRandom v)=> IORef PureMT -> Int -> Double -> RVar Double -> Ratio v -> IO (DistributedPoints v)
-genFullRandomGrainDistribution gen targetNGrains avgVolume dist ratio = 
+  
+-- TODO remove ratio, add auto range, calc Weight
+genFullRandomGrainDistribution::(GenRandom v)=> Ratio v -> JobRequest -> IO (DistributedPoints v)
+genFullRandomGrainDistribution ratio VoronoiJob{..} = 
   let
-    totalVolume = avgVolume*(fromIntegral targetNGrains)
-    box         = calcBoxSize totalVolume ratio
-    delta       = boxDim box
-    getPoint    = do
-      p  <- genPoint gen stdUniform
-      gs <- genGrainSize gen dist
-      return $ WPoint gs (delta &! p) 
-    in replicateM targetNGrains getPoint >>= return.(DistributedPoints box).fromList
-
-
-genGrainSize::IORef PureMT -> RVar Double -> IO Double
-genGrainSize gen f = sampleFrom gen f
-
-getRandomGen::RandomSeed -> IO (IORef PureMT)
-getRandomGen x = case x of
-    NoSeed -> newPureMT >>= newIORef
-    (Seed seed) ->  (return $ pureMT (fromIntegral seed)) >>= newIORef
+    (gsFunc, gsMean) = composeDist gsDist
+    totalVolume      = gsMean * (fromIntegral targetNumber)
+    box              = calcBoxSize totalVolume ratio
+    delta            = boxDim box
+    getPoint         = do
+      gen <- getRandomGen seed
+      gs  <- genGrainSize gen (0,100) gsFunc targetNumber
+      ps  <- replicateM targetNumber (genPoint gen stdUniform) 
+      return $ zipWith (\gs p -> WPoint (gs / pi) (delta &! p)) gs ps
+    in getPoint >>= return.(DistributedPoints box).fromList  
+  
+  
+genGrainSize::IORef PureMT -> (Double, Double) -> (Double -> Double) -> Int -> IO [Double]
+genGrainSize gen (a, b) func n = let
+  disc = linearDiscretization (a, b) func 400
+  in sampleN disc gen n
+     

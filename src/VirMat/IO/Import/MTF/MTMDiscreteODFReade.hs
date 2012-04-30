@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module IO.Import.MTF.MTMDiscreteODFReader
+module VirMat.IO.Import.MTF.MTMDiscreteODFReade
 ( parseMTMDiscODF
 )where
 
@@ -11,7 +11,7 @@ import Data.Vector (Vector, (!))
 import Text.ParserCombinators.Parsec
 import qualified Data.Vector as V
 
-import Distributions.Texture.DiscreteODF
+import VirMat.Distributions.Texture.DiscreteODF
 
 -- >>>>>>>>>>>>>>>>>>>>>>>>>   PARSING SECTION   <<<<<<<<<<<<<<<<<<<<<<<<<<<<
 -- | Parse just one input file. Rise an error mesage in case of error.

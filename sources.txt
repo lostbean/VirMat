@@ -1,0 +1,5 @@
+./
+../DeUni
+../Hammer
+../*Clones*/active
+../*Clones*/diagrams-svg-darcs

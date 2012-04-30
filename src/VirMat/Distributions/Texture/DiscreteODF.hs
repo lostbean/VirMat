@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Distributions.Texture.DiscreteODF
+module VirMat.Distributions.Texture.DiscreteODF
 ( ODFDim  (..)
 , DiscODF (..)
 -- Function to work with MTMDiscODF

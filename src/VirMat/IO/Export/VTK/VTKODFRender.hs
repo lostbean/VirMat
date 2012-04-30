@@ -1,4 +1,4 @@
-module IO.Export.VTK.VTKODFRender
+module VirMat.IO.Export.VTK.VTKODFRender
        ( renderVTK
        , writeVTKfile )
        
@@ -8,8 +8,8 @@ import qualified Data.Vector as V
 import Data.XML.Types
 import qualified Text.XML.Enumerator.Document as X
 
-import Distributions.Texture.DiscreteODF ( DiscODF, step, nPHI1, nPHI, nPHI2, sPHI1, sPHI, sPHI2, odf )
-import IO.Export.VTK.TemplateVTKXMLStruc
+import VirMat.Distributions.Texture.DiscreteODF ( DiscODF, step, nPHI1, nPHI, nPHI2, sPHI1, sPHI, sPHI2, odf )
+import VirMat.IO.Export.VTK.TemplateVTKXMLStruc
 
                  
 writeVTKfile::FilePath -> DiscODF -> IO ()

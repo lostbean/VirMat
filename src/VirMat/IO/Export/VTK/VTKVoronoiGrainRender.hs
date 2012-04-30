@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module IO.Export.VTK.VTKVoronoiGrainRender
+module VirMat.IO.Export.VTK.VTKVoronoiGrainRender
        ( writeVoronoiGrainVTKfile
        ) where
 
@@ -17,19 +17,19 @@ import Hammer.Render.VTK.Base
 import DeUni.Types
 import DeUni.Dim3.Base3D
 
-import Core.VoronoiBuilder (VoronoiGrain(..), VoronoiFace(..))
+import VirMat.Core.VoronoiBuilder (VoronoiGrain(..), VoronoiFace(..))
 
 type Simplex = S2 Point3D
 type VTKState = (Vector (Int, Int, Int, Int), Vector Vec3, Int, Vector Int)
 
-writeVoronoiGrainVTKfile::String -> IntMap Simplex -> [VoronoiGrain] -> IO ()
+writeVoronoiGrainVTKfile::String -> IntMap Simplex -> [VoronoiGrain Point3D] -> IO ()
 writeVoronoiGrainVTKfile file wall grains = let
   (cs, ps, _, ids) = renderGrains wall grains
   ug               = mkUGVTK "RegularTriangulation" ps cs
   ug'              = addDataCells ug $ IDDataCell "GrainID" (\i _ _ -> ids!i)
   in writeUniVTKfile (text2Path file) ug'
 
-renderGrains::IntMap Simplex -> [VoronoiGrain] -> VTKState
+renderGrains::IntMap Simplex -> [VoronoiGrain Point3D] -> VTKState
 renderGrains wall grains = let
   len = case maxViewWithKey wall of
     Just (x,_) -> fst x
@@ -38,7 +38,7 @@ renderGrains wall grains = let
   initPS = Vec.generate len (\i -> findWithDefault zero i ps)
   in foldl renderGrain (empty, initPS, 0, empty) grains
 
-renderGrain::VTKState -> VoronoiGrain -> VTKState
+renderGrain::VTKState -> VoronoiGrain Point3D -> VTKState
 renderGrain (tetras, sP, id, ids) grain = let
   len         = Vec.length sP
   centerGrain = grainCenter grain
@@ -46,12 +46,12 @@ renderGrain (tetras, sP, id, ids) grain = let
   newIDs      = Vec.replicate (Vec.length newTetras) id
   in (tetras ++ newTetras, sP `snoc` centerGrain, id+1, ids ++ newIDs)
   
-renderAllFaces::Int -> [VoronoiFace] -> Vector (Int, Int, Int, Int)
+renderAllFaces::Int -> [VoronoiFace Point3D] -> Vector (Int, Int, Int, Int)
 renderAllFaces offset faces = let
   tetras      = map (renderFace offset) faces
   in foldl (++) empty tetras
 
-renderFace::Int -> VoronoiFace -> Vector (Int, Int, Int, Int)
+renderFace::Int -> VoronoiFace Point3D -> Vector (Int, Int, Int, Int)
 renderFace centerGrain face = let
   ix  = map fst (edges face)
   

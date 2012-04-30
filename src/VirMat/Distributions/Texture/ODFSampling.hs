@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 
-module Distributions.Texture.ODFSampling
+module VirMat.Distributions.Texture.ODFSampling
 (testeIMCODF 
 ) where
 
@@ -23,8 +23,8 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 
 -- Internal modules
-import Distributions.Texture.DiscreteODF
-import IO.Import.MTF.MTMDiscreteODFReader
+import VirMat.Distributions.Texture.DiscreteODF
+import VirMat.IO.Import.MTF.MTMDiscreteODFReader
 
 import Debug.Trace
 debug :: Show a => String -> a -> a

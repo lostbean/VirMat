@@ -1,5 +1,5 @@
 Name:                VirMat
-Version:             0.3
+Version:             0.4
 License:             GPL-3
 License-file:        ""
 Author:              Edgar Gomes de Araujo
@@ -13,24 +13,68 @@ Cabal-version:       >=1.2.0
 Build-type:          Simple
 Category:            Data, Math
 
+
+Flag cmdline
+    Description:        Build the exectable using command line.
+    Default:            False
+
+
+
 Executable virmat
     hs-source-dirs:     src
-    Build-Depends:      DeUni           >=0.2
-                      , hammer          -any
-                      , base            -any
-                      , containers      -any
-                      , mersenne-random-pure64 -any
-                      , monad-loops     -any
-                      , mtl             -any
-                      , parsec          >=3
-                      , statistics      -any
-                      , transformers    -any
-                      , vector          -any
-                      , random-fu       -any
-                      , random-source   >=0.2
+    main-is:            Main.hs
+    ghc-options:        -O3 -threaded -rtsopts -auto-all -caf-all
+    if flag(cmdline)
+      Buildable:        True
+    else
+      Buildable:        False
 
-    Main-is:            Main.hs
-    Buildable:          True
-    Other-modules:      
-    Extensions: 
-    ghc-options:        -O2 -rtsopts -auto-all -caf-all
+
+library
+    hs-source-dirs:     src
+    Build-Depends:      DeUni                  == 0.3.2
+                      , hammer                 -any
+                      , base                   >= 4.2  && < 4.6
+                      , containers             >= 0.4  && < 10.5
+                      , mersenne-random-pure64 >= 0.2  && < 10.3
+                      , monad-loops            >= 0.3  && < 10.4
+                      , mtl                    >= 2.0  && < 13.0
+                      , parsec                 >= 3.0  && < 14.0
+                      , statistics             >= 0.10 && < 10.11
+                      , transformers           >= 0.2  && < 10.4
+                      , vector                 >= 0.9  && < 11.0
+                      , random-fu              >= 0.2  && < 10.3
+                      , random-source          >= 0.3  && < 10.4
+                      , aeson                  >= 0.6  && < 0.7
+
+                      , diagrams-svg           >= 0.2  && < 0.3
+                      , diagrams-core          >= 0.5  && < 0.6
+                      , diagrams-lib           >= 0.5  && < 0.6
+                      , blaze-builder          >= 0.3  && < 0.4
+                      , blaze-html             >= 0.4  && < 0.5
+                      , bytestring             >= 0.9  && < 11.0
+                      , colour                 >= 2.0  && < 13.0
+
+    Exposed-modules:    VirMat.Run2D
+                        VirMat.Run3D
+
+                        VirMat.Core.VoronoiBuilder
+                        VirMat.Core.Packer
+                        VirMat.Core.Sampling
+                        
+                        VirMat.Distributions.GrainSize.StatTools
+                        VirMat.Distributions.GrainSize.GrainDistributionGenerator
+                        VirMat.Distributions.GrainSize.GrainQuery
+                        VirMat.Distributions.Texture.DiscreteODF
+
+                        VirMat.IO.Export.Types
+                        VirMat.IO.Export.VTK.VTKVoronoiGrainRender
+                        VirMat.IO.Export.SVG.RenderSVG
+
+                        VirMat.IO.Import.Types
+
+
+
+
+
+

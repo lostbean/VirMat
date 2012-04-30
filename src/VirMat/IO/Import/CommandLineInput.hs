@@ -1,75 +1,20 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module IO.Import.CommandLineInput
-( JobRequest (..)
-, DistributionType (..)
-, OutputFile (..)
-, OutputInfoType   (..)
-, ShowIn3D   (..)
-, RandomSeed (..)
-, Show3DType (..)
-, parseArgs
+module VirMat.IO.Import.CommandLineInput
+( parseArgs
 ) where
 
 import Control.Monad.Trans
+import Control.Monad (liftM)
 import Data.List
---import System.Posix
 import Text.Parsec.Prim hiding (try)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Error
 import Text.ParserCombinators.Parsec.Perm
 
--- Data definition
-data JobRequest =
-  VoronoiGrainDistribution
-    { distrType            ::DistributionType
-    , targetNumber         ::Int
-    , targetMeanVolume     ::Double
-    , targetVariance       ::Double
-    , anisotropyShapeRatio ::(Double,Double,Double)
-    , seed                 ::RandomSeed
-    , outputFile           ::OutputFile 
-    , showIn3D             ::ShowIn3D
-    } deriving (Show)
-
-data DistributionType =
-    RandomDistribution
-  | PackedDistribution
-    deriving (Show, Eq)
-             
-data OutputFile =
-    NoOutput
-  | OutputFile 
-    { outputFilePath ::FilePath
-    , outputInfo     ::[OutputInfoType]
-    } deriving (Show)
-                             
-data OutputInfoType =
-    GrainVolume
-  | GrainArea  
-  | GrainNumber 
-    deriving (Show, Eq)
+import VirMat.IO.Import.Types
                       
-data ShowIn3D =
-    ShowAll [Show3DType]
-  | NoShow
-  | ShowOnly [Show3DType] Int 
-    deriving (Show)
-
-data Show3DType =
-    VoronoiGrain3D
-  | Box3D
-  | Hull3D 
-  | Points3D
-  | Simplex3D
-    deriving (Show, Eq)
-
-data RandomSeed =
-    Seed Int
-  | NoSeed
-    deriving (Show)
-
 
 -- >>>>>>>>>>>>>>>>>>>>>>>>  HELP  >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 help = "\nVirMat help!\n\
@@ -80,6 +25,9 @@ help = "\nVirMat help!\n\
 \    distribution parameters:\n\
 \        generqtor type: \"random\", \"packed\" \n\
 \        \"n=\": numbers of grains (upper limit)\n\
+\        \"gsDist:\": compose a grain size distribution\n\
+\            \"logNorm{k,d,s,m}\": where k=scale factor, d=shift on x\n\
+\                                  s=sigma and m=mu\n\
 \        \"vol=\", \"radius=\" or \"diameter=\": grain size average\n\
 \            \"s2=\": square variance; default = 1.0\n\
 \        \"shape=\": anisotropy shape relation. Use \"shape=a:b:c\".\n\
@@ -130,15 +78,13 @@ parseJobRequest = do try (do {maybeSep; string "-voronoi";})
                        (func
                         <$$> parseDistributionType
                         <||> parseNGrains
-                        <||> parseGrainsSize
-                        <|?> (1.0, parseVariance)
-                        <|?> ((1,1,1), parseAnisotropyShape)
+                        <||> parseDistribution
                         <|?> (NoSeed, parseSeed)
                         <|?> (NoOutput,parseOutFile)
                         <|?> (NoShow, parseShowOnly)
                        )
   where
-    func distrType targetNumber targetMeanVolume targetVariance anisotropyShapeRatio seed outputFile showIn3D = VoronoiGrainDistribution {..}
+    func distrType targetNumber gsDist seed outputFile showResults = VoronoiJob {..}
 
 -- >>>>>>>>>>>>>>>>>>>>>>>>>>> SubParser <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 -- All sub parsers from permutation can't consume any tokens if it fails, otherwise it will get stuked
@@ -153,8 +99,12 @@ parseDistributionType = do try ( do {maybeSep; string "random"; return RandomDis
 
 -- Parse and cast the fields
 parseNGrains::Parser Int
-parseNGrains = do try ( do {maybeSep; string "n="; g <- parseNum; return g;} )
-              <|> pzero
+parseNGrains = let
+  getit = try $ do
+    maybeSep
+    string "n="
+    parseNum
+  in getit <|> pzero
 
 -- Parse and cast the fields
 parseGrainsSize::Parser Double
@@ -165,31 +115,75 @@ parseGrainsSize = do try ( do {maybeSep; string "vol="; g <- parseNum; return g;
 
 
 parseVariance::Parser Double
-parseVariance = do try ( do {maybeSep; string "s2=";g <- parseNum; return g;}) -- wrap try on first setence including sep or spaces
-               <|> pzero
+parseVariance = let
+  getit = try $ do
+    maybeSep
+    string "s2="
+    parseNum
+  in getit <|> pzero
 
 parseAnisotropyShape::Parser (Double, Double, Double)
-parseAnisotropyShape = do try (do {maybeSep; string "shape=";})
-                          maybeSep; l1 <- parseNum
-                          char ':'; l2 <- parseNum
-                          char ':'; l3 <- parseNum
-                          return (l1, l2, l3)
+parseAnisotropyShape = try $ do
+  maybeSep; string "shape="
+  maybeSep; l1 <- parseNum
+  char ':'; l2 <- parseNum
+  char ':'; l3 <- parseNum
+  return (l1, l2, l3)
 
-parseShow3DType::Parser Show3DType
-parseShow3DType = try ( do {maybeSep; string "v"; return VoronoiGrain3D;} )
-              <|> try ( do {maybeSep; string "b"; return Box3D;} )
-              <|> try ( do {maybeSep; string "h"; return Hull3D;} )
-              <|> try ( do {maybeSep; string "p"; return Points3D;} )
-              <|> try ( do {maybeSep; string "s"; return Simplex3D;} )
+parseDistribution::Parser [CombDist]
+parseDistribution = let
+  getit = try $ do
+    maybeSep; string "gsDist:"
+    many1 (choice [parseLogNormal, parseNormal, parseUniform])
+  in getit <|> pzero
+
+parseLogNormal::Parser CombDist
+parseLogNormal = let 
+  getit = try $ do 
+    maybeSep; string "logNorm"
+    maybeSep; char '{'
+    k <- parseNum
+    char ':'; mean   <- parseNum
+    char ':'; var    <- parseNum
+    char ':'; offset <- parseNum
+    char '}'
+    return $ CombDist $ LogNormal k mean var offset
+  in getit <|> pzero
+     
+     
+parseNormal :: Parser CombDist
+parseNormal = let 
+  getit = try $ do 
+    maybeSep; string "norm"
+    maybeSep; char '{'
+    k <- parseNum
+    char ':'; mean <- parseNum
+    char ':'; var  <- parseNum
+    char '}'
+    return $ CombDist $ Normal k mean var
+  in getit <|> pzero
+
+parseUniform :: Parser CombDist
+parseUniform = let 
+  getit = try $ do 
+    maybeSep; string "uniform"
+    maybeSep; char '{'
+    k <- parseNum
+    char ':'; mean <- parseNum
+    char ':'; var  <- parseNum
+    char '}'
+    return $ CombDist $ Uniform k mean var
+  in getit <|> pzero
+                 
+parseShow3DType::Parser ShowType
+parseShow3DType = try ( do {maybeSep; string "v"; return ShowVoronoiGrains;} )
+              <|> try ( do {maybeSep; string "b"; return ShowBox;} )
+              <|> try ( do {maybeSep; string "h"; return ShowHull;} )
+              <|> try ( do {maybeSep; string "p"; return ShowPoints;} )
+              <|> try ( do {maybeSep; string "s"; return ShowSimplex;} )
                      
-parseShowOnly::Parser ShowIn3D
+parseShowOnly::Parser ShowResults
 parseShowOnly = try ( do maybeSep
-                         string "showonly="
-                         g <- parseNum
-                         t <- many parseShow3DType
-                         return $ ShowOnly t g
-                    )
-            <|> try ( do maybeSep
                          string "showall"
                          t <- many parseShow3DType
                          return $ ShowAll t
@@ -198,8 +192,12 @@ parseShowOnly = try ( do maybeSep
 
 -- Parse and cast the fields
 parseSeed::Parser RandomSeed
-parseSeed = do try ( do {maybeSep; string "seed="; n <- parseNum; return $ Seed n;} )
-           <|> pzero
+parseSeed = let
+  getit = try $ do
+    maybeSep
+    string "seed="
+    liftM Seed parseNum
+  in getit <|> pzero
 
 -- TODO fix file test
 parseInFile::Parser FilePath
