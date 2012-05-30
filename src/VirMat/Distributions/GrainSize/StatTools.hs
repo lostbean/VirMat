@@ -6,8 +6,9 @@ module VirMat.Distributions.GrainSize.StatTools
        ( RandomSeed(..)
        , getRandomGen
        , freqHist
-       , fracHist
-       , composeDist  
+       , autoHistWeb
+       , autoHist
+       , composeDist
        , MultiDist (..)
        )where
 
@@ -66,28 +67,42 @@ composeDist fs = let
   , mDistArea     = area
   }
 
-freqHist::Double -> Double -> Double -> [Double] -> Histogram
-freqHist initial final step dist = let
-  n             = floor $ (final - initial) / step
+freqHist::Double -> Double -> Int -> [Double] -> Histogram
+freqHist initial final nbin dist = let
+  step          = (final - initial) / (fromIntegral nbin)
   (total, hist) = foldl' add (0, IM.empty) dist
-  
-  calcBin x     = 
+
+  calcBin x     =
     if total == 0
     then Coord2D {x = fromIntegral x * step, y = 0}
     else Coord2D {x = fromIntegral x * step, y = (IM.findWithDefault 0 x hist) / total}
-  
-  add (total, acc) x = let 
+
+  add (total, acc) x = let
     id = floor $ (x - initial) / step
     in (total + 1, IM.insertWith (+) id 1 acc)
-  
-  in Histogram {binSize = step, bins = map calcBin [0 .. n - 1]}
 
+  in Histogram {binSize = step, bins = map calcBin [0 .. nbin - 1]}
 
+autoHistWeb :: [Double] -> Histogram
+autoHistWeb = autoHist' 4
+
+autoHist :: [Double] -> Histogram
+autoHist = autoHist' 1
+
+autoHist' :: Int -> [Double] -> Histogram
+autoHist' k dist = let
+  final = maximum dist
+  init  = minimum dist
+  -- overload number of bins so it can be recombined at the web interface
+  over  = if k < 1 then 1 else k
+  n     = (over*) . ceiling . sqrt . fromIntegral . length $ dist
+  in freqHist init final n dist
+
+{--
 fracHist = undefined
-   {--                
 fracHist
 
-  add (total, acc) x = let 
+  add (total, acc) x = let
     id = floor $ (x - initial) / step
     in (total + x, IM.insertWith (+) id x acc)
 --}
