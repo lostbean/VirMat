@@ -2,12 +2,13 @@
 {-# LANGUAGE RecordWildCards #-}
 
 
-module VirMat.Distributions.GrainSize.StatTools  
+module VirMat.Distributions.GrainSize.StatTools
        ( RandomSeed(..)
        , getRandomGen
        , freqHist
        , fracHist
        , composeDist  
+       , MultiDist (..)
        )where
 
 -- External modules
@@ -25,20 +26,45 @@ import Hammer.Math.Vector hiding (Vector)
 import VirMat.IO.Import.Types
 import VirMat.IO.Export.Types
 
-                        
+import Debug.Trace
+debug :: Show a => String -> a -> a
+debug s x = trace (s ++ show x) x
+
+data MultiDist =
+  MultiDist
+  { mDistFunc     :: (Double -> Double)
+  , mDistMean     :: Double
+  , mDistInterval :: (Double, Double)
+  , mDistModes    :: [Double]
+  , mDistArea     :: Double
+  }
+
 getRandomGen::RandomSeed -> IO (IORef PureMT)
 getRandomGen x = case x of
   NoSeed -> newPureMT >>= newIORef
   (Seed seed) ->  (return $ pureMT (fromIntegral seed)) >>= newIORef
-    
-composeDist::[CombDist] -> ((Double -> Double), Double)
+
+composeDist::[CombDist] -> Maybe MultiDist
+composeDist [] = Nothing
 composeDist fs = let
   dist = foldl' (\acc dist -> (\x -> acc x + (getDistFunc dist) x)) (\_ -> 0) fs
   mean = let
-    func (sa, ma) dist = let s = getDistScale dist in (s + sa, (getDistMean dist * s) + ma)
+    func (sa, ma) dist = let s = getDistArea dist in (s + sa, (getDistMean dist * s) + ma)
     (totalS, totalM) = foldl' func (0,0) fs
     in totalM / totalS
-  in (dist, mean)
+  modes = map getDistMode fs
+  area  = foldl' (\acc dist -> getDistArea dist + acc) 0 fs
+  interval = let
+    xs = concatMap (toList . getDistInterval) fs
+    toList (a,b) = [a,b]
+    in (minimum xs, maximum xs)
+  in return $ trace (show (mean, interval, modes, area)) $ MultiDist
+  { mDistFunc     = dist
+  , mDistMean     = mean
+  , mDistInterval = interval
+  , mDistModes    = modes
+  , mDistArea     = area
+  }
 
 freqHist::Double -> Double -> Double -> [Double] -> Histogram
 freqHist initial final step dist = let

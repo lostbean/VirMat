@@ -23,14 +23,10 @@ help = "\nVirMat help!\n\
 \        \"-voronoi\": \n\
 \    \n\
 \    distribution parameters:\n\
-\        generqtor type: \"random\", \"packed\" \n\
-\        \"n=\": numbers of grains (upper limit)\n\
+\        generqtor type: \"random\", \"packed\"  \n\
+\        \"n=\": numbers of grains (upper limit) \n\
 \        \"gsDist:\": compose a grain size distribution\n\
-\            \"logNorm{k,d,s,m}\": where k=scale factor, d=shift on x\n\
-\                                  s=sigma and m=mu\n\
-\        \"vol=\", \"radius=\" or \"diameter=\": grain size average\n\
-\            \"s2=\": square variance; default = 1.0\n\
-\        \"shape=\": anisotropy shape relation. Use \"shape=a:b:c\".\n\
+\            \"logNorm{scale:mean:mode:offset}\" \n\
 \    \n\
 \    output file:\n\
 \        \"-o <outputInfo> filename\" \n\
@@ -144,10 +140,10 @@ parseLogNormal = let
     maybeSep; char '{'
     k <- parseNum
     char ':'; mean   <- parseNum
-    char ':'; var    <- parseNum
+    char ':'; mode   <- parseNum
     char ':'; offset <- parseNum
     char '}'
-    return $ CombDist $ LogNormal k mean var offset
+    return $ CombDist $ LogNormal k mean mode offset
   in getit <|> pzero
      
      
