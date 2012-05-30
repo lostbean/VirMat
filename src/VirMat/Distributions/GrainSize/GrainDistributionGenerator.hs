@@ -16,7 +16,8 @@ module VirMat.Distributions.GrainSize.GrainDistributionGenerator
 import Control.Monad (replicateM, liftM, foldM)
 import Control.Monad.Loops (iterateUntil)
 import Control.Monad.ST (runST)
-import Data.Vector (Vector, (!), fromList)
+import qualified Data.Vector as Vec
+import Data.Vector (Vector, (!))
 import Data.IORef
 import Data.Random
 import Data.Random.RVar
@@ -34,24 +35,24 @@ import VirMat.IO.Import.Types
 import VirMat.Core.Sampling
 
 data DistributedPoints a =
-  DistributedPoints { box      ::Box a
-                    , setPoint ::SetPoint a }
+  DistributedPoints { box      :: Box a
+                    , setPoint :: SetPoint a }
 
 
 class (AlgLin.Vector v, AlgLin.Pointwise v)=> GenRandom v where
   type Ratio v :: *
-  defRatio     :: Ratio v     
+  defRatio     :: Ratio v
   calcBoxSize  :: Double -> Ratio v -> Box v
   boxDim       :: Box v -> v
   genPoint     :: IORef PureMT -> RVar Double -> IO v
-  
-       
+
+
 
 instance GenRandom Point2D where
   type Ratio Point2D = (Double, Double)
-  
+
   defRatio = (1, 1)
-  
+
   calcBoxSize avgVolume (xRatio, yRatio) = let
     refRatio = xRatio
     k1       = yRatio/refRatio
@@ -72,9 +73,9 @@ instance GenRandom Point2D where
 
 instance GenRandom Point3D where
   type Ratio Point3D = (Double, Double, Double)
-  
+
   defRatio = (1, 1, 1)
-  
+
   calcBoxSize avgVolume (xRatio, yRatio, zRatio) =
     let
     refRatio = xRatio
@@ -96,25 +97,27 @@ instance GenRandom Point3D where
     b <- sampleFrom gen f
     c <- sampleFrom gen f
     return $ Vec3 a b c
-  
+
 -- TODO remove ratio, add auto range, calc Weight
-genFullRandomGrainDistribution::(GenRandom v)=> Ratio v -> JobRequest -> IO (DistributedPoints v)
-genFullRandomGrainDistribution ratio VoronoiJob{..} = 
-  let
-    (gsFunc, gsMean) = composeDist gsDist
-    totalVolume      = gsMean * (fromIntegral targetNumber)
-    box              = calcBoxSize totalVolume ratio
-    delta            = boxDim box
-    getPoint         = do
-      gen <- getRandomGen seed
-      gs  <- genGrainSize gen (0,100) gsFunc targetNumber
-      ps  <- replicateM targetNumber (genPoint gen stdUniform) 
-      return $ zipWith (\gs p -> WPoint (gs / pi) (delta &! p)) gs ps
-    in getPoint >>= return.(DistributedPoints box).fromList  
-  
-  
-genGrainSize::IORef PureMT -> (Double, Double) -> (Double -> Double) -> Int -> IO [Double]
-genGrainSize gen (a, b) func n = let
-  disc = linearDiscretization (a, b) func 400
-  in sampleN disc gen n
-     
+genFullRandomGrainDistribution:: (GenRandom v)=> Ratio v -> JobRequest -> IO (DistributedPoints v)
+genFullRandomGrainDistribution ratio VoronoiJob{..} = case composeDist gsDist of
+    Just mdist -> let
+      (gsFunc, gsMean) = (mDistFunc mdist, mDistMean mdist)
+      totalVolume      = gsMean * (fromIntegral targetNumber)
+      box              = calcBoxSize totalVolume ratio
+      delta            = boxDim box
+      getPoint         = do
+        -- test for integration sampling
+        print $ integrateMDist mdist
+
+        
+        gen <- getRandomGen seed
+        gs  <- genGrainSize mdist gen targetNumber
+        ps  <- replicateM targetNumber (genPoint gen stdUniform)
+        return $ zipWith (\gs p -> WPoint (gs / pi) (delta &! p)) gs ps
+      in getPoint >>= return . (DistributedPoints box) . Vec.fromList
+    Nothing -> error "[GrainDistributionGenerator] No target distrubution defined."
+
+genGrainSize::MultiDist -> IORef PureMT -> Int -> IO [Double]
+genGrainSize = sampleN
+

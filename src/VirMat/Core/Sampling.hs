@@ -1,9 +1,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 
 
 module VirMat.Core.Sampling
 ( sampleN
-, linearDiscretization
+, integrateMDist
 ) where
 
 -- External modules
@@ -40,25 +41,72 @@ data Discrete a = DiscValue { discX::Double
 instance (Show a)=> Show (Discrete a) where
   show (DiscValue x y) = "DiscValue " ++ show (x,y)
 
-linearDiscretization::(Double, Double) -> (Double -> Double) -> Int -> Vector (Discrete Double)
-linearDiscretization (init, final) func n = let
-  delta = final - init
-  step  = if n < 0 then delta else delta / (fromIntegral n)
-  xs    = V.fromList [init, init + step .. final]
-  in V.map (\x -> DiscValue x (func x)) xs
+
+data IntegrationBin = 
+  IB
+  { xmin :: Double
+  , pmin :: Double
+  , xmax :: Double
+  , pmax :: Double
+  , area :: Double
+  } deriving (Show)
+                                     
+-- | Creates an initial set of bins with area based on the  upper and lower
+-- limits and the list of modes. That should guarantee no distribution will be skiped.
+getAreaBins::MultiDist -> Vector (IntegrationBin)
+getAreaBins MultiDist{..} = let
+  xs    = V.fromList $ L.sort mDistModes
+  min   = DiscValue (fst mDistInterval) 0
+  max   = DiscValue (snd mDistInterval) 0
+  modes = V.map (\x -> DiscValue x (mDistFunc x)) xs
+  df    = min `V.cons` modes `V.snoc` max  
   
+  area i a = let
+    b     = df!(i+1)
+    delta = discX b - discX a
+    in IB { xmin = discX a
+          , pmin = discY a
+          , xmax = discX b
+          , pmax = discY b
+          , area = delta * 0.5 * (discY a + discY b)
+          }
+  
+  in V.imap area (V.init df)
 
-sampleN::Vector (Discrete Double) -> IORef PureMT -> Int -> IO [Double]
-sampleN dist gen n = do
-  let int= integrate dist
-  rnd <- replicateM n $ sampleFrom gen stdUniform
-  return $ mapMaybe (invertFx int) rnd
+integral_error :: Double
+integral_error = 10e-5
 
-sampleOne::Vector (Discrete Double) -> Double -> Maybe Double
-sampleOne dist rnd = let
-  int = integrate dist
-  in invertFx int rnd
+-- | Divide and Conquer algorithm for subdivide in small bins until
+-- their area error reaches a predifined minmum.
+divConAreaBin :: (Double -> Double) -> IntegrationBin -> (Vector (IntegrationBin) -> Vector (IntegrationBin))
+divConAreaBin func ia@IB{..} = let
+  x     = (xmax + xmin) / 2
+  p     = func x
+  delta = x - xmin
+  area1 = delta * 0.5 * (pmin + p)
+  area2 = delta * 0.5 * (p + pmax)
+  ia1   = ia { xmax = x, pmax = p, area = area1 }
+  ia2   = ia { xmin = x, pmin = p, area = area2 }
+  in if abs (area1 + area2 - area) > integral_error
+    then divConAreaBin func ia1 . divConAreaBin func ia2
+    else V.cons ia1 . V.cons ia2
 
+
+-- | Calculate the cummulative function P(x), where P(x) is the integral
+-- of f(t) from (-) infinity to x e.g. the sum of of the area from 
+-- (-) infinity to x. More info, (see)[http://www.zweigmedia.com/RealWorld/integral/numint.html]
+integrateMDist::MultiDist -> Vector (Discrete Double)
+integrateMDist mdist = let
+  func  = mDistFunc mdist
+  bins  = getAreaBins mdist
+  areas = V.foldr (\x acc -> divConAreaBin func x acc) V.empty bins
+  init
+    | V.null areas = error "[Sampling] Can't sampling undefined distribution."
+    | otherwise    = (\x -> DiscValue (xmin x) 0) . V.head $ areas
+  -- The integral of f(t) from a to b is the vaule of the area at b
+  in V.scanl' (\acc x -> DiscValue (xmax x) (discY acc + area x)) init areas 
+     
+     
 invertFx::Vector (Discrete Double) -> Double -> Maybe Double
 invertFx integral y = let
   size = V.length integral 
@@ -86,42 +134,20 @@ interpolate (a, b) y = let
   ratio = (y-ya)/(yb-ya)
   in xa + (xb-xa)*ratio
 
-normalize::Vector Double -> Vector Double
-normalize df = norm
-  where
-    norm  = V.map (/max) df
-    max = V.maximum df
+normalize::Vector (Discrete Double) -> Vector (Discrete Double)
+normalize df = let
+  max = discY $ V.maximumBy (\a b -> compare (discY a) (discY b)) df
+  in V.map (\x -> x {discY = (discY x) / max}) df
 
+sampleN::MultiDist -> IORef PureMT -> Int -> IO [Double]
+sampleN dist gen n = do
+  let int = normalize $ integrateMDist dist
+  rnd <- replicateM n $ sampleFrom gen stdUniform
+  return $ mapMaybe (invertFx int) rnd
 
--- | Calculate the cummulative function P(x), where P(x) is the integral
--- of f(t) from (-) infinity to x e.g. the sum of of the area from 
--- (-) infinity to x. More info, (see)[http://www.zweigmedia.com/RealWorld/integral/numint.html]
-integrate::Vector (Discrete Double) -> Vector (Discrete Double)
-integrate df = let
-  area i a = let
-    b     = df!(i+1)
-    delta = discX b - discX a
-    -- The integral of f(t) from a to b is the vaule of the area at b
-    in (discX b, delta * 0.5 * (discY a + discY b))
-  -- TODO: it can more effecient, add case for null Vec
-  areas  = (discX $ V.head df, 0) `V.cons` V.imap area (V.init df)
-  stairs = V.scanl1 (\a b -> a +  b) . V.map snd $ areas 
-  in V.zipWith (\ref x -> DiscValue (fst ref) x) areas (normalize stairs)
+sampleOne::Vector (Discrete Double) -> Double -> Maybe Double
+sampleOne dist rnd = let
+  int = normalize dist
+  in invertFx int rnd
+     
 
-
-
-
-
--- TODO temp remove
-test (a,b) n func = let
-  disc    = linearDiscretization (a, b) func n
-  discInt = integrate disc
-  tolist  = V.toList . V.map (\(DiscValue x y) -> (x,y))
-  dia     = renderPlot $ tolist disc
-  diaInt  = renderPlot $ tolist discInt
-  in do
-    gen  <- getRandomGen NoSeed
-    dist <- sampleN disc gen 100000
-    print dist
- --   let diaHist = renderHistogram 1 13 0.2 $ map (*10) $ freqHist 1 13 0.2 dist
- --   renderSVGFile "/home/edgar/Desktop/plotInt.svg" (sizeSpec (Just 500, Just 500)) (scaleY 2 $ dia <> diaInt)
