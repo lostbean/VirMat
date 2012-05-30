@@ -3,6 +3,7 @@
 
 module VirMat.Run2D where
 
+import VirMat.Types
 import VirMat.Core.VoronoiBuilder
 import VirMat.Core.Packer
 import VirMat.Distributions.GrainSize.StatTools
@@ -38,14 +39,7 @@ import Debug.Trace
 debug :: Show a => String -> a -> a
 debug s x = trace (s ++ show x) x
 
-data Simulation a = 
-    Simulation
-  { box           :: Box a
-  , pointSet      :: SetPoint a
-  , triangulation :: IM.IntMap (S2 a)
-  , grainSet      :: [Grain a]
-  }
-  
+
 -- ==================================== 2D =============================================
 runVirMat2D::JobRequest -> IO (Simulation Point2D)
 runVirMat2D jobReq = do
@@ -53,20 +47,24 @@ runVirMat2D jobReq = do
         RandomDistribution -> genFullRandomGrainDistribution (1, 1) jobReq
         PackedDistribution -> undefined
     -- DEBUG
-    print . snd . composeDist . gsDist $ jobReq
+    let Just mdist = composeDist . gsDist $ jobReq
+    print $ mDistMean mdist
+    print $ mDistInterval mdist
+    print $ mDistModes mdist
+    print $ mDistArea mdist
     --print ps0
     -- =====
     let
       len0                 = Vec.length ps0
       psID0                = [0..len0-1]
       (wall0,wallSt0)      = runDelaunay2D box2D ps0 psID0
-      
+
       (psFinal, wallFinal) = runPacker 60 box2D ps0 wall0
       grainsFinal          = convertDT2Voronoi psFinal (onlySimpleInBox2D box2D wallFinal)
-      
-    return $ Simulation { box = box2D, pointSet = psFinal, triangulation = wallFinal, grainSet = grainsFinal } 
-      
-    
+
+    return $ Simulation { box = box2D, pointSet = psFinal, triangulation = wallFinal, grainSet = grainsFinal }
+
+
 
 onlyDistInBox::(PointND a)=> Box a -> SetPoint a -> SetPoint a
 onlyDistInBox box sp = Vec.filter ((isInBox box).point) sp
@@ -77,7 +75,7 @@ onlySimpleInBox2D box ls = IM.filter ((isInBox box).circleCenter) ls
 
 -- ================== render to HTML ========================
 renderPointSet::Simulation Point2D -> Html
-renderPointSet Simulation{..} = let  
+renderPointSet Simulation{..} = let
   dia = closeUpOnBox box $
            renderBox2D box
         <> renderSetPoint2D pointSet
@@ -86,13 +84,13 @@ renderPointSet Simulation{..} = let
 renderPointSetWithForces::Simulation Point2D -> Html
 renderPointSetWithForces Simulation{..} = let
   forces = setForce triangulation pointSet
-  
+
   dia = closeUpOnBox box $
            renderBox2D box
         <> renderSetPoint2D pointSet
         <> renderForces pointSet forces
   in renderSVGHtml (sizeSpec (Just 500, Just 500)) dia
-  
+
 renderGrainSet::Simulation Point2D -> Html
 renderGrainSet Simulation{..} = let
   dia = closeUpOnBox box $
@@ -107,16 +105,14 @@ renderTriangulation Simulation{..} = let
         <> renderSetGrain2D grainSet
         <> renderSetS2Triangle pointSet triangulation
   in renderSVGHtml (sizeSpec (Just 500, Just 500)) dia
-     
+
 
 -- ================== render to JSON ========================
 getGrainSizeHist::Simulation Point2D -> Histogram
-getGrainSizeHist Simulation{..} = freqHist 0 200 2 (getFaceAreaFracHist grainSet)
-  
+getGrainSizeHist Simulation{..} = autoHist (getFaceAreaFracHist grainSet)
+
 getTargetGrainSizeHist::Simulation a -> Histogram
-getTargetGrainSizeHist Simulation{..} = freqHist 0 200 2 (map ((* pi).weigth) $ Vec.toList pointSet)
-
-
+getTargetGrainSizeHist Simulation{..} = autoHist (map ((* pi).weigth) $ Vec.toList pointSet)
 
 
 -- ================== debug ========================
@@ -127,35 +123,35 @@ printEvo id box sp wall grains = let
     zeros = take (3 - l) ['0', '0' ..]
     in zeros ++ n
   forces = setForce wall sp
-  
+
   diaUP1 = closeUpOnBox box $
            renderBox2D box
         <> renderSetPoint2D sp
         <> renderForces sp forces
-  
+
   diaUP2 = closeUpOnBox box $
            renderBox2D box
         <> renderSetGrain2D grains
-        
-  in renderSVGFile ("evoluton_" ++ name ++ ".svg") (sizeSpec (Just 1000, Just 1000)) $ 
+
+  in renderSVGFile ("evoluton_" ++ name ++ ".svg") (sizeSpec (Just 1000, Just 1000)) $
      (diaUP1 ||| diaUP2)
 
 printMicro name Simulation{..} = let
   forces = setForce triangulation pointSet
-  
+
   diaUP1 = closeUpOnBox box $
            renderBox2D box
         <> renderSetPoint2D pointSet
         <> renderForces pointSet forces
-  
+
   diaUP2 = closeUpOnBox box $
            renderBox2D box
         <> renderSetPoint2D pointSet
         <> renderSetS2Triangle pointSet triangulation
-  
+
   diaUP3 = closeUpOnBox box $
            renderBox2D box
         <> renderSetGrain2D grainSet
 
   in renderSVGFile ("microstructure_" ++ name ++ ".svg") (sizeSpec (Just 500, Just 1500)) $
-     diaUP1 === diaUP2 === diaUP3 
+     diaUP1 === diaUP2 === diaUP3

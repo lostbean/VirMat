@@ -6,6 +6,7 @@
 
 module VirMat.Run3D where
 
+import VirMat.Types
 import VirMat.Core.VoronoiBuilder
 import VirMat.Core.Packer
 import VirMat.Distributions.GrainSize.StatTools
@@ -32,7 +33,6 @@ import qualified Data.Map as Map
 import DeUni.DeWall
 import DeUni.Types
 import DeUni.Dim3.Base3D
-import DeUni.Dim2.Base2D
 import Hammer.Math.Vector hiding (Vector)
 import qualified Hammer.Math.Vector as AlgLin
 
@@ -40,13 +40,35 @@ import Debug.Trace
 debug :: Show a => String -> a -> a
 debug s x = trace (s ++ show x) x
 
-main = do
-    putStrLn ("VirMat v0.3 03/2012 [by Edgar Gomes]") 
+
+-- ==================================== 3D =============================================
+runVirMat3D::JobRequest -> IO (Simulation Point3D)
+runVirMat3D jobReq = do
+    pdist2D@(DistributedPoints box3D ps0) <- case distrType jobReq of
+        RandomDistribution -> genFullRandomGrainDistribution (1, 1, 1) jobReq
+        PackedDistribution -> undefined
+    -- DEBUG
+    let Just mdist = composeDist . gsDist $ jobReq
+    print $ mDistMean mdist
+    print $ mDistInterval mdist
+    print $ mDistModes mdist
+    print $ mDistArea mdist
+    --print ps0
+    -- =====
+    let
+      len0                 = Vec.length ps0
+      psID0                = [0..len0-1]
+      (wall0,wallSt0)      = runDelaunay3D box3D ps0 psID0
+
+      (psFinal, wallFinal) = (ps0, wall0) --runPacker 60 box2D ps0 wall0
+      grainsFinal          = convertDT2Voronoi psFinal (onlySimplexInBox3D box3D wallFinal)
+
+    return $ Simulation { box = box3D, pointSet = psFinal, triangulation = wallFinal, grainSet = grainsFinal }
 
 
 onlyDistInBox::(PointND a)=> Box a -> SetPoint a -> SetPoint a
 onlyDistInBox box sp = Vec.filter ((isInBox box).point) sp
 
-onlySimpleInBox::Box Point3D -> IM.IntMap (S2 Point3D) -> IM.IntMap (S2 Point3D)
-onlySimpleInBox box ls = IM.filter ((isInBox box).circumSphereCenter) ls
+onlySimplexInBox3D::Box Point3D -> IM.IntMap (S2 Point3D) -> IM.IntMap (S2 Point3D)
+onlySimplexInBox3D box ls = IM.filter ((isInBox box).circumSphereCenter) ls
 
