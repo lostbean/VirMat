@@ -45,6 +45,7 @@ library
                       , vector                 >= 0.9  && < 11.0
                       , random-fu              >= 0.2  && < 10.3
                       , random-source          >= 0.3  && < 10.4
+                      , SubZero                == 0.1.0
                       , aeson                  >= 0.6  && < 0.7
 
                       , diagrams-svg           >= 0.2  && < 0.3

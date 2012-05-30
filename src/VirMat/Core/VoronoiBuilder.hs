@@ -8,13 +8,9 @@ module VirMat.Core.VoronoiBuilder
 , findGrainsTree
 , Level1(..)
 , Level2(..)
-, VoronoiGrain
+, VoronoiGrain(..)
 , Grain
-, grainCenter
-, faces
-, VoronoiFace
-, faceTo
-, edges
+, VoronoiFace(..)
 ) where
 
 -- External modules
@@ -46,26 +42,26 @@ class (PointND a)=> VoronoiGrainBuilder a where
   foldS2          :: (PointPointer -> b -> b) -> b -> S2 a -> b
   findGrainsTree  :: IntMap (S2 a) -> [MaxLevel a]
   makeGrain       :: SetPoint a -> [MaxLevel a] -> [Grain a]
-  
+
 instance VoronoiGrainBuilder Point3D where
   type MaxLevel Point3D = Level2 Point3D
   type Grain    Point3D = VoronoiGrain Point3D
-  
-  foldS2 func acc s2 = let         
+
+  foldS2 func acc s2 = let
     (a, b, c, d) = tetraPoints s2
     in func a $ func b $ func c $ func d acc
-  
+
   findGrainsTree = level1to2 IS.empty . calcLevelOne IS.empty
   makeGrain sP   = mapMaybe (buildGrain sP)
 
 instance VoronoiGrainBuilder Point2D where
   type MaxLevel Point2D = Level1 Point2D
   type Grain    Point2D = VoronoiFace Point2D
-  
-  foldS2 func acc s2 = let         
+
+  foldS2 func acc s2 = let
     (a, b, c) = face2DPoints s2
     in func a $ func b $ func c acc
-  
+
   findGrainsTree = calcLevelOne IS.empty
   -- Assume PointPointer >= 0
   makeGrain sP   = mapMaybe (buildFace (-1) sP)
@@ -78,7 +74,7 @@ type SetPointer = IntSet
 -- L2 (level two) - Simplex with a commun vertex - vertex pair, such a a pair defines a face.
 data Level1 a = L1 PointPointer (IntMap (S2 a))
 data Level2 a = L2 PointPointer [Level1 a]
-   
+
 instance (Show (Level1 a))=> Show (Level2 a) where
   show (L2 id x) = "\n L2: "  ++ (show id) ++ (show x)
 instance (PointND a, Show (S2 a))=> Show (Level1 a) where
@@ -89,9 +85,9 @@ findNode::(VoronoiGrainBuilder a)=> SetPointer -> IntMap (S2 a) -> IntMap (IntMa
 findNode blacklist = IM.foldlWithKey func IM.empty
   where
     func acc s2ID s2 =
-      let        
+      let
         addS2 new old = IM.insert s2ID s2 old
-        
+
         add pointPointer im
           | IS.member pointPointer blacklist = im
           | otherwise = IM.insertWith addS2 pointPointer (IM.singleton s2ID s2) im
@@ -99,7 +95,7 @@ findNode blacklist = IM.foldlWithKey func IM.empty
 
 calcLevelOne::(VoronoiGrainBuilder a)=> SetPointer -> IntMap (S2 a) -> [Level1 a]
 calcLevelOne blacklist = IM.foldlWithKey (\acc id ls -> (L1 id ls):acc) [] . findNode blacklist
-    
+
 level1to2::(VoronoiGrainBuilder a)=> SetPointer -> [Level1 a] -> [Level2 a]
 level1to2 blacklist = map (\(L1 id x) -> L2 id (calcLevelOne (IS.insert id blacklist) x))
 
@@ -127,9 +123,9 @@ data VoronoiFace a = VoronoiFace
 instance (Show (VoronoiFace a))=> Show (VoronoiGrain a) where
   show g = let
      showFaces = ("\n\t\t|- " ++) . show
-     in "Grain " ++ show (grainCenterIx g) ++ " :" ++ concatMap showFaces (faces g) ++ "\n" 
+     in "Grain " ++ show (grainCenterIx g) ++ " :" ++ concatMap showFaces (faces g) ++ "\n"
 instance Show (VoronoiFace Point3D) where
-  show f = "Face to grain " ++ show (faceToIx f) ++ " -> " ++ (show $ map (tetraPoints.snd) (edges f)) 
+  show f = "Face to grain " ++ show (faceToIx f) ++ " -> " ++ (show $ map (tetraPoints.snd) (edges f))
 
 buildGrain::(VoronoiGrainBuilder a)=> SetPoint a -> Level2 a -> Maybe (VoronoiGrain a)
 buildGrain sP (L2 id fs) = let
@@ -156,7 +152,7 @@ seqNode (r1,r2) (s2:s2s) = sequence (fst seed) s2s >>= return . (s2:)
     seed     = case findVertex (\_ -> True) s2 of
       [a,b] -> (a,b)
       _     -> error "[VoronoiGrainBuilder] Bad triangulation!"
-    
+
     findVertex func (_, s2) = let
       add key ks
         | key == r1 || key == r2 = ks
@@ -176,11 +172,10 @@ seqNode (r1,r2) (s2:s2s) = sequence (fst seed) s2s >>= return . (s2:)
           let nextPP = head $ findVertex (/=refPP) nextS2
           in sequence nextPP list >>= return . (nextS2:)
       _                 -> Nothing
-      
+
     getNext ref xs = case break (isIn ref) xs of
       ([], [])   -> Nothing
       (_ , [])   -> Nothing
       (as, b:bs) -> Just (b, as ++ bs)
 
-          
 
