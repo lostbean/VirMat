@@ -33,19 +33,19 @@ Executable virmat
 library
     hs-source-dirs:     src
     Build-Depends:      DeUni                  == 0.3.2
-                      , hammer                 -any
-                      , base                   >= 4.2  && < 4.6
-                      , containers             >= 0.4  && < 10.5
-                      , mersenne-random-pure64 >= 0.2  && < 10.3
-                      , monad-loops            >= 0.3  && < 10.4
-                      , mtl                    >= 2.0  && < 13.0
-                      , parsec                 >= 3.0  && < 14.0
-                      , statistics             >= 0.10 && < 10.11
-                      , transformers           >= 0.2  && < 10.4
-                      , vector                 >= 0.9  && < 11.0
-                      , random-fu              >= 0.2  && < 10.3
-                      , random-source          >= 0.3  && < 10.4
+                      , hammer                 == 0.1.1
                       , SubZero                == 0.1.0
+                      , base                   >= 4    && < 5
+                      , containers             >= 0.4  && < 0.5
+                      , mersenne-random-pure64 >= 0.2  && < 0.3
+                      , monad-loops            >= 0.3  && < 0.4
+                      , mtl                    >= 2.0  && < 3.0
+                      , parsec                 >= 3.0  && < 4.0
+                      , statistics             >= 0.10 && < 0.11
+                      , transformers           >= 0.2  && < 0.4
+                      , vector                 >= 0.9  && < 1.0
+                      , random-fu              >= 0.2  && < 0.3
+                      , random-source          >= 0.3  && < 0.4
                       , aeson                  >= 0.6  && < 0.7
 
                       , diagrams-svg           >= 0.2  && < 0.3
@@ -53,11 +53,12 @@ library
                       , diagrams-lib           >= 0.5  && < 0.6
                       , blaze-builder          >= 0.3  && < 0.4
                       , blaze-html             >= 0.4  && < 0.5
-                      , bytestring             >= 0.9  && < 11.0
-                      , colour                 >= 2.0  && < 13.0
+                      , bytestring             >= 0.9  && < 1.0
+                      , colour                 >= 2.0  && < 3.0
 
     Exposed-modules:    VirMat.Run2D
                         VirMat.Run3D
+                        VirMat.Types
 
                         VirMat.Core.VoronoiBuilder
                         VirMat.Core.Packer
