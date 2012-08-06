@@ -7,7 +7,7 @@ import qualified Data.ByteString.Lazy     as BS
 import qualified Blaze.ByteString.Builder as B
 import Text.Blaze.Svg.Renderer.Utf8 (renderSvg)
 import Text.Blaze (Html, lazyText, unsafeLazyByteString)
-import Data.Colour (AlphaColour,withOpacity)
+import Data.Colour (Colour,AlphaColour,withOpacity)
 
 import qualified Data.List as L
 import qualified Data.Vector as Vec
@@ -102,7 +102,9 @@ renderTri a b c = let
      # translate (v2r a)
 
 renderSetPoint2D::Vector (WPoint Point2D) -> Diagram SVG R2
-renderSetPoint2D ps = Vec.foldl' (\acc x -> acc <> renderCircle (point x) (sqrt . weigth $ x) (red `withOpacity` 0.10)) mempty ps
+renderSetPoint2D ps = let
+  rc x = renderCircle (point x) (DeUni.DeWall.radius x) (red `withOpacity` 0.10)
+  in Vec.foldl' (\acc x -> acc <> rc x) mempty ps
 
 v2r (Vec2 x y) = r2 (x,y)
 
@@ -111,27 +113,33 @@ v2p (Vec2 x y) = p2 (x,y)
 renderDiffArr::Vector (WPoint Point2D) ->  Vector (WPoint Point2D) -> Diagram SVG R2
 renderDiffArr arr0 arr1 = let
   ds = Vec.zip arr0 arr1
-  in Vec.foldl (\acc (a,b) -> acc <> renderVector (point a, point b)) mempty ds
+  in Vec.foldl (\acc (a,b) -> acc <> renderVector red (point a, point b)) mempty ds
 
-renderForces::Vector (WPoint Point2D) -> Vector Point2D -> Diagram SVG R2
+renderForces::Vector (WPoint Point2D) -> Vector (Vector Point2D) -> Diagram SVG R2
 renderForces arr forces = let
   ds = Vec.zip arr forces
-  in Vec.foldl (\acc (x,f) -> acc <> renderVector (point x, point x &+ (f &* 0.1))) mempty ds
+  func x fs = Vec.foldl (\acc f -> acc <> renderVector green (point x, point x &+ f)) mempty fs
+  in Vec.foldl (\acc (x, fs) -> acc <> func x fs) mempty ds
 
-renderVector::(Point2D, Point2D) -> Diagram SVG R2
-renderVector (a,b) = let
+renderDisp::Vector (WPoint Point2D) -> Vector Point2D -> Diagram SVG R2
+renderDisp arr disp = let
+  ds = Vec.zip arr disp
+  in Vec.foldl (\acc (x, v) -> acc <> renderVector red (point x, point x &+ v)) mempty ds
+     
+renderVector::Colour Double -> (Point2D, Point2D) -> Diagram SVG R2
+renderVector color (a,b) = let
   func = v2p
   ab   = func a ~~ func b
   in strokeT ab
-   # fcA (green `withOpacity` 0.8)
+   # fcA (color `withOpacity` 0.8)
    # lw 0.2
-   # lc green
+   # lc color
    # translate (v2r a)
 
 renderCircle::Point2D -> Double -> AlphaColour Double -> Diagram SVG R2
-renderCircle point diameter color = let
+renderCircle point radius color = let
   v = v2r point                      
-  in circle diameter
+  in circle radius
      # lc black
      # fcA color
      # translate v 
@@ -139,10 +147,6 @@ renderCircle point diameter color = let
      # fc black
      # translate v
      
-
-
-
-
 renderPlot::[(Double, Double)] -> Diagram SVG R2
 renderPlot plot = let
   curve = fromVertices $ map p2 plot
@@ -150,7 +154,6 @@ renderPlot plot = let
      # translate (r2 $ head plot)
      # lc blue
      # lw 0.01
-
 
 renderHistogram::Double -> Double -> Double -> [Double] -> Diagram SVG R2
 renderHistogram initial final step yAxe = let
