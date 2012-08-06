@@ -29,10 +29,8 @@ import Data.Random.RVar
 import qualified Data.IntMap as IM
 import qualified Data.Map as Map
 
-
 import DeUni.DeWall
-import DeUni.Types
-import DeUni.Dim3.Base3D
+
 import Hammer.Math.Vector hiding (Vector)
 import qualified Hammer.Math.Vector as AlgLin
 

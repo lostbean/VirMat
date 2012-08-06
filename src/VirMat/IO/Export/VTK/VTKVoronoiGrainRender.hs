@@ -14,8 +14,7 @@ import Hammer.Math.Vector hiding (Vector)
 import Hammer.Render.VTK.VTKRender
 import Hammer.Render.VTK.Base
 
-import DeUni.Types
-import DeUni.Dim3.Base3D
+import DeUni.DeWall
 
 import VirMat.Core.VoronoiBuilder (VoronoiGrain(..), VoronoiFace(..))
 

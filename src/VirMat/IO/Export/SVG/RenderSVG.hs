@@ -18,8 +18,8 @@ import Data.IntMap (IntMap)
 import Diagrams.Prelude hiding (width, height, interval)
 import Diagrams.Backend.SVG
 
-import DeUni.Types
-import DeUni.Dim2.Base2D
+import DeUni.DeWall
+
 import Hammer.Math.Vector hiding (Vector)
 
 import VirMat.Core.VoronoiBuilder

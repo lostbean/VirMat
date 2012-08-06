@@ -28,9 +28,7 @@ import qualified Data.Map as Map
 import Text.Blaze (Html)
 
 import DeUni.DeWall
-import DeUni.Types
-import DeUni.Dim3.Base3D
-import DeUni.Dim2.Base2D
+
 import Hammer.Math.Vector hiding (Vector)
 import qualified Hammer.Math.Vector as AlgLin
 

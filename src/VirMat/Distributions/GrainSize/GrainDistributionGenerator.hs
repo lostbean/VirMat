@@ -26,9 +26,8 @@ import System.Random.Mersenne.Pure64
 
 import qualified Hammer.Math.Vector as AlgLin
 import Hammer.Math.Vector hiding (Vector)
-import DeUni.Types
-import DeUni.Dim3.Base3D
-import DeUni.Dim2.Base2D
+
+import DeUni.DeWall
 
 import VirMat.Distributions.GrainSize.StatTools
 import VirMat.IO.Import.Types
