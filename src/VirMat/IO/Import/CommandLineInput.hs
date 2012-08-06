@@ -22,6 +22,10 @@ help = "\nVirMat help!\n\
 \    distribution type:\n\
 \        \"-voronoi\": \n\
 \    \n\
+\    dimension:\n\
+\        \"3d\": for 3 dimensions microstructures.\n\
+\        \"2d\": for 3 dimensions microstructures.\n\
+\    \n\
 \    distribution parameters:\n\
 \        generqtor type: \"random\", \"packed\"  \n\
 \        \"n=\": numbers of grains (upper limit) \n\
@@ -72,7 +76,8 @@ parseJobRequest::Parser JobRequest
 parseJobRequest = do try (do {maybeSep; string "-voronoi";})
                      permute
                        (func
-                        <$$> parseDistributionType
+                        <$$> parseDimension
+                        <||> parseDistributionType
                         <||> parseNGrains
                         <||> parseDistribution
                         <|?> (NoSeed, parseSeed)
@@ -80,13 +85,17 @@ parseJobRequest = do try (do {maybeSep; string "-voronoi";})
                         <|?> (NoShow, parseShowOnly)
                        )
   where
-    func distrType targetNumber gsDist seed outputFile showResults = VoronoiJob {..}
+    func dimension distrType targetNumber gsDist seed outputFile showResults = VoronoiJob {..}
 
 -- >>>>>>>>>>>>>>>>>>>>>>>>>>> SubParser <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 -- All sub parsers from permutation can't consume any tokens if it fails, otherwise it will get stuked
 -- on that paser (waiting to complete that parser): Solution = add try to the keyword that "do {maybeSep; string "hyst" ....
 -- and leave the rest. In that way it will wait to complete only if the keyword was macth.
 
+-- Parse and cast the fields
+parseDimension::Parser Dimension
+parseDimension = do try ( do {maybeSep; string "2d"; return Dimension2D;} )
+                       <|> try ( do {maybeSep; string "3d"; return Dimension3D;} )
 
 -- Parse and cast the fields
 parseDistributionType::Parser DistributionType

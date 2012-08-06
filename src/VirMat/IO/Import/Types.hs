@@ -15,13 +15,19 @@ import Control.Monad (mzero, mplus)
 -- Data definition
 data JobRequest =
   VoronoiJob
-    { distrType    ::DistributionType
+    { dimension    ::Dimension
+    , distrType    ::DistributionType
     , targetNumber ::Int
     , gsDist       ::[CombDist]
     , seed         ::RandomSeed
     , outputFile   ::OutputFile 
     , showResults  ::ShowResults
     } deriving (Show)
+
+data Dimension =
+    Dimension2D
+  | Dimension3D
+  deriving (Show, Eq)
 
 data DistributionType =
     RandomDistribution
@@ -190,6 +196,9 @@ $(deriveFromJSON id ''OutputFile)
 
 $(deriveToJSON id ''DistributionType)
 $(deriveFromJSON id ''DistributionType)
+
+$(deriveToJSON id ''Dimension)
+$(deriveFromJSON id ''Dimension)
 
 $(deriveToJSON id ''JobRequest)
 $(deriveFromJSON id ''JobRequest)
