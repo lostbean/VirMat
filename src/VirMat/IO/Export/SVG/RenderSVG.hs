@@ -5,7 +5,7 @@ module VirMat.IO.Export.SVG.RenderSVG where
 
 import qualified Data.ByteString.Lazy     as BS
 import qualified Blaze.ByteString.Builder as B
--- import qualified Data.Text.Lazy.Encoding  as TL
+import Text.Blaze.Svg.Renderer.Utf8 (renderSvg)
 import Text.Blaze (Html, lazyText, unsafeLazyByteString)
 import Data.Colour (AlphaColour,withOpacity)
 
@@ -33,12 +33,12 @@ sizeSpec (width, height) = case (width, height) of
 renderSVGFile :: String -> SizeSpec2D -> Diagram SVG R2 -> IO ()
 renderSVGFile fileName sizeSpec dia = let
   build = renderDia SVG (SVGOptions fileName sizeSpec) dia
-  in BS.writeFile fileName (B.toLazyByteString build)
-                      
+  in BS.writeFile fileName (renderSvg build)
+
 renderSVGHtml :: SizeSpec2D -> Diagram SVG R2 -> Html
 renderSVGHtml sizeSpec dia = let
   build = renderDia SVG (SVGOptions "" sizeSpec) dia
-  in unsafeLazyByteString (B.toLazyByteString build)
+  in unsafeLazyByteString (renderSvg build)
 
 closeUpOnBox::Box Point2D -> Diagram SVG R2 -> Diagram SVG R2
 closeUpOnBox Box2D{..} = let
