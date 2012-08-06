@@ -44,10 +44,17 @@ debug s x = trace (s ++ show x) x
 -- ==================================== 3D =============================================
 runVirMat3D::JobRequest -> IO (Simulation Point3D)
 runVirMat3D jobReq = do
-    pdist2D@(DistributedPoints box3D ps0) <- case distrType jobReq of
+    pdist2D@(DistributedPoints box3D ps) <- case distrType jobReq of
         RandomDistribution -> genFullRandomGrainDistribution (1, 1, 1) jobReq
-        PackedDistribution -> undefined
-    -- DEBUG
+        PackedDistribution ->  do
+          (DistributedPoints box3D ps0) <- genFullRandomGrainDistribution (1, 1, 1) jobReq
+          let
+            len0                 = Vec.length ps0
+            psID0                = [0..len0-1]
+            (wall0,wallSt0)      = runDelaunay3D box3D ps0 psID0
+            (psFinal, wallFinal) = runPacker 60 box3D ps0 wall0
+          return $ DistributedPoints box3D psFinal
+    -- === DEBUG ====
     let Just mdist = composeDist . gsDist $ jobReq
     print $ mDistMean mdist
     print $ mDistInterval mdist
@@ -56,14 +63,12 @@ runVirMat3D jobReq = do
     --print ps0
     -- =====
     let
-      len0                 = Vec.length ps0
-      psID0                = [0..len0-1]
-      (wall0,wallSt0)      = runDelaunay3D box3D ps0 psID0
+      len           = Vec.length ps
+      psID          = [0..len-1]
+      (wall,wallSt) = runDelaunay3D box3D ps psID
+      grains        = convertDT2Voronoi ps (onlySimplexInBox3D box3D wall)
 
-      (psFinal, wallFinal) = (ps0, wall0) --runPacker 60 box2D ps0 wall0
-      grainsFinal          = convertDT2Voronoi psFinal (onlySimplexInBox3D box3D wallFinal)
-
-    return $ Simulation { box = box3D, pointSet = psFinal, triangulation = wallFinal, grainSet = grainsFinal }
+    return $ Simulation { box = box3D, pointSet = ps, triangulation = wall, grainSet = grains }
 
 
 onlyDistInBox::(PointND a)=> Box a -> SetPoint a -> SetPoint a

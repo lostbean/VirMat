@@ -43,9 +43,16 @@ debug s x = trace (s ++ show x) x
 -- ==================================== 2D =============================================
 runVirMat2D::JobRequest -> IO (Simulation Point2D)
 runVirMat2D jobReq = do
-    pdist2D@(DistributedPoints box2D ps0) <- case distrType jobReq of
+    pdist2D@(DistributedPoints box2D ps) <- case distrType jobReq of
         RandomDistribution -> genFullRandomGrainDistribution (1, 1) jobReq
-        PackedDistribution -> undefined
+        PackedDistribution -> do
+          (DistributedPoints box2D ps0) <- genFullRandomGrainDistribution (1, 1) jobReq
+          let
+            len0                 = Vec.length ps0
+            psID0                = [0..len0-1]
+            (wall0,wallSt0)      = runDelaunay2D box2D ps0 psID0
+            (psFinal, wallFinal) = runPacker 60 box2D ps0 wall0
+          return $ DistributedPoints box2D psFinal
     -- DEBUG
     let Just mdist = composeDist . gsDist $ jobReq
     print $ mDistMean mdist
@@ -55,14 +62,12 @@ runVirMat2D jobReq = do
     --print ps0
     -- =====
     let
-      len0                 = Vec.length ps0
-      psID0                = [0..len0-1]
-      (wall0,wallSt0)      = runDelaunay2D box2D ps0 psID0
+      len           = Vec.length ps
+      psID          = [0..len-1]
+      (wall,wallSt) = runDelaunay2D box2D ps psID
+      grains        = convertDT2Voronoi ps (onlySimpleInBox2D box2D wall)
 
-      (psFinal, wallFinal) = runPacker 60 box2D ps0 wall0
-      grainsFinal          = convertDT2Voronoi psFinal (onlySimpleInBox2D box2D wallFinal)
-
-    return $ Simulation { box = box2D, pointSet = psFinal, triangulation = wallFinal, grainSet = grainsFinal }
+    return $ Simulation { box = box2D, pointSet = ps, triangulation = wall, grainSet = grains }
 
 
 
@@ -112,7 +117,7 @@ getGrainSizeHist::Simulation Point2D -> Histogram
 getGrainSizeHist Simulation{..} = autoHist (getFaceAreaFracHist grainSet)
 
 getTargetGrainSizeHist::Simulation a -> Histogram
-getTargetGrainSizeHist Simulation{..} = autoHist (map ((* pi).weigth) $ Vec.toList pointSet)
+getTargetGrainSizeHist Simulation{..} = autoHist (map ((* pi).weight) $ Vec.toList pointSet)
 
 
 -- ================== debug ========================

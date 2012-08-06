@@ -79,6 +79,7 @@ data FlexFace =
   , quadrupleJunction  :: [CP0DID]
   , tripleline         :: [CP1DID]
   , faceCP             :: CP2DID
+  , patchs             :: Vector (Patch Int)
   } deriving (Show)
 
 type MicroState = State FlexMicro
@@ -146,7 +147,9 @@ addFace grainID VoronoiFace{..} = let
     let
       ref   = fst edge
       value = circumOrigin $ snd edge
-      newID = if IM.null controlPoints then 0 else 1 + (fst $ IM.findMax controlPoints)
+      newID = if IM.null controlPoints
+              then 0
+              else 1 + (fst $ IM.findMax controlPoints)
     case IM.lookup ref mapCP0D of
       Just id -> insCP id value           
       Nothing -> do
@@ -158,7 +161,9 @@ addFace grainID VoronoiFace{..} = let
     let
       ref   = fst interedge
       value = snd interedge
-      newID = if IM.null controlPoints then 0 else 1 + (fst $ IM.findMax controlPoints)
+      newID = if IM.null controlPoints
+              then 0
+              else 1 + (fst $ IM.findMax controlPoints)
     case M.lookup ref mapCP1D of
       Just id -> insCP id value           
       Nothing -> do
@@ -168,7 +173,9 @@ addFace grainID VoronoiFace{..} = let
   insCP2D ref value = do
     micro@FlexMicro{..} <- get
     let
-      newID = if IM.null controlPoints then 0 else 1 + (fst $ IM.findMax controlPoints)
+      newID = if IM.null controlPoints
+              then 0
+              else 1 + (fst $ IM.findMax controlPoints)
     case M.lookup ref mapCP2D of
       Just id -> insCP id value           
       Nothing -> do
@@ -183,65 +190,33 @@ addFace grainID VoronoiFace{..} = let
   
   in do
     cp0D <- mapM insCP0D edges
-  
     cp1D <- mapM insCP1D (func edges)
-  
     cp2D <- let
       (s, n) = foldl' (\(s, n) x -> (s &+ (circumOrigin $ snd x), n + 1)) (zero, 0) edges
       avg    = s &* (1/n)
       in insCP2D (PairID (grainID, faceToIx)) avg
     
     micro@FlexMicro{..} <- get
+    let
+      newFace = FlexFace { faceID = (PairID (grainID, faceToIx))
+                         , quadrupleJunction  = cp0D
+                         , tripleline         = cp1D
+                         , faceCP             = cp2D
+                         , patchs = buildPatch cp0D cp1D cp2D
+                         }
     case M.lookup (PairID (grainID, faceToIx)) surfaces of
       Just face -> return () 
-      Nothing   -> put $ micro { surfaces = M.insert (PairID (grainID, faceToIx)) ( FlexFace { faceID = (PairID (grainID, faceToIx))
-                                                                                             , quadrupleJunction  = cp0D
-                                                                                             , tripleline         = cp1D
-                                                                                             , faceCP             = cp2D
-                                                                                             } ) surfaces }
+      Nothing   -> put $ micro { surfaces = M.insert (PairID (grainID, faceToIx)) newFace surfaces }
     return (PairID (grainID, faceToIx))
                    
-
-
-writeFM out fm n func = let
-  vtks = renderFlexMicro' fm n func
-  in writeMultiVTKfile (text2Path out) vtks
-
-
-renderFlexMicro::FlexMicro -> Int -> (Vector Point3D -> Vector Point3D) -> Vector (VTK Point3D)
-renderFlexMicro FlexMicro{..} n trans = let
-  ps = Vec.fromList $ IM.elems controlPoints
-  ps' = trans $ Vec.map controlPoint ps
-  faces = M.elems surfaces
-  patchs = concatMap (makePatch ps') faces
-
-  patchs' = foldl (\acc x -> x acc) patchs (take n $ repeat subdAll)
-  subdAll = map subdivide
-  in Vec.fromList $ map renderPatch patchs'
-
-
-renderFlexMicro'::FlexMicro -> Int -> (Vector Point3D -> Vector Point3D) -> Vector (VTK Point3D)
-renderFlexMicro' FlexMicro{..} n trans = let
-  ps = Vec.fromList $ IM.elems controlPoints
-  ps' = trans $ Vec.map controlPoint ps
-  gs = Vec.fromList $ IM.elems grains
-  in Vec.concatMap (\FlexGrain{..} -> let
-          fs = mapMaybe (\k -> M.lookup k surfaces) faces
-          ids x  = addDataCells x (IDDataCell "GrainID" (\ n v c -> grainID))
-          patchs = concatMap (makePatch ps') fs
-
-          patchs' = foldl (\acc x -> x acc) patchs (take n $ repeat subdAll)
-          subdAll = map subdivide
-          in Vec.map ids $ Vec.fromList $ map renderPatch patchs') gs
-
-
-makePatch::Vector Point3D -> FlexFace -> [Patch Point3D]
-makePatch ps FlexFace{..} = let
+buildPatch::[Int] -> [Int] -> Int -> Vector(Patch Int)
+buildPatch quadrupleJunction tripleline faceCP  = let
   edges  = getEdges quadrupleJunction tripleline
   tris   = map (\(a,b) -> (a,b,faceCP)) edges
   mesh   = buildMesh tris
-  in map (evalPatch ps . makepatch mesh quadrupleJunction) tris 
+  in Vec.fromList $ map (makepatch mesh quadrupleJunction) tris 
 
+getEdges :: [a] -> [a] -> [(a, a)]
 getEdges a b = let
   ahead = L.head a
 
@@ -251,4 +226,62 @@ getEdges a b = let
   intercalate (x:xs) (y:ys) = (x, y):(y, ahead):(intercalate (xs) (ys))
   
   in intercalate a b
+
+
+-- ================================ Tools ========================================
+findVertex :: Vector (Patch Int) -> Int -> Maybe (Patch Int, PatchPos)
+findVertex ps id = let
+  pos n = [PatchPos(0,0), PatchPos(0,n), PatchPos(n,n)]
+  
+  findNemo _ [] = Nothing
+  findNemo patch (x:xs) = case getNode patch x of
+    Just i
+      | id == i   -> Just x
+      | otherwise -> findNemo patch xs
+    Nothing -> findNemo patch xs
+  
+  findLemo [] = Nothing
+  findLemo (i:is) = let
+    patch = ps!i
+    n = level patch
+    in case findNemo patch (pos n) of
+      Just p  -> Just (ps!i, p)
+      Nothing -> findLemo is
+      
+  in findLemo [0 .. Vec.length ps -1]
+
+writeFM out fm n = let
+  vtks = renderFlexMicroFullGrain fm n
+  in writeMultiVTKfile (text2Path out) vtks
+
+
+renderFlexMicro::FlexMicro -> Int -> Vector (VTK Point3D)
+renderFlexMicro FlexMicro{..} n = let
+  ps      = Vec.fromList $ IM.elems controlPoints
+  faces   = Vec.fromList $ M.elems surfaces
+  patchs  = Vec.concatMap (evalPatchs $ Vec.map controlPoint ps) faces
+  patchs' = Vec.foldl' (\acc x -> x acc) patchs (Vec.replicate n subdAll)
+  subdAll = Vec.map subdivide
+  in Vec.map renderPatch patchs'
+     
+-- render each face twice (a set of faces per grains) with ID 
+renderFlexMicroFullGrain::FlexMicro -> Int -> Vector (VTK Point3D)
+renderFlexMicroFullGrain FlexMicro{..} n = let
+  ps = Vec.fromList $ IM.elems controlPoints
+  gs = Vec.fromList $ IM.elems grains
+  in Vec.concatMap (\FlexGrain{..} -> let
+                       fs     = Vec.fromList $ mapMaybe (\k -> M.lookup k surfaces) faces
+                       ids x  = addDataCells x (IDDataCell "GrainID" (\ n v c -> grainID))
+                       patchs = Vec.concatMap (evalPatchs $ Vec.map controlPoint ps) fs
+
+                       patchs' = Vec.foldl' (\acc x -> x acc) patchs (Vec.replicate n subdAll)
+                       subdAll = Vec.map subdivide
+                       in Vec.map ids $ Vec.map renderPatch patchs'
+                   ) gs
+
+
+evalPatchs :: Vector Point3D -> FlexFace -> Vector (Patch Point3D)
+evalPatchs ps FlexFace{..} = Vec.map (evalPatch ps) patchs
+
+
      
