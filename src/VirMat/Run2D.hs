@@ -141,16 +141,18 @@ printEvo id box sp wall grains = let
 
 printMicro name Simulation{..} = let
   forces = setForce triangulation pointSet
+  disp   = setDisp triangulation pointSet
 
   diaUP1 = closeUpOnBox box $
            renderBox2D box
         <> renderSetPoint2D pointSet
-        <> renderForces pointSet forces
+        <> renderDisp pointSet disp
 
   diaUP2 = closeUpOnBox box $
            renderBox2D box
         <> renderSetPoint2D pointSet
         <> renderSetS2Triangle pointSet triangulation
+        <> renderForces pointSet forces
 
   diaUP3 = closeUpOnBox box $
            renderBox2D box
