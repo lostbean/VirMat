@@ -9,7 +9,7 @@ module VirMat.Distributions.GrainSize.GrainDistributionGenerator
 ( genFullRandomGrainDistribution
 , genPoint
 , DistributedPoints(..)
-, calcBoxSize
+, calcBox
 , defRatio
 ) where
 
@@ -37,27 +37,30 @@ data DistributedPoints a =
   DistributedPoints { box      :: Box a
                     , setPoint :: SetPoint a }
 
-
 class (AlgLin.Vector v, AlgLin.Pointwise v)=> GenRandom v where
-  type Ratio v :: *
-  defRatio     :: Ratio v
-  calcBoxSize  :: Double -> Ratio v -> Box v
-  boxDim       :: Box v -> v
-  genPoint     :: IORef PureMT -> RVar Double -> IO v
-
-
+  type Ratio v    :: *
+  defRatio        :: Ratio v
+  calcBox         :: Double -> Ratio v -> Box v
+  calcBoxFromDist :: Vector Double -> Ratio v -> Box v
+  boxDim          :: Box v -> v
+  genPoint        :: IORef PureMT -> RVar Double -> IO v
 
 instance GenRandom Point2D where
   type Ratio Point2D = (Double, Double)
 
   defRatio = (1, 1)
 
-  calcBoxSize avgVolume (xRatio, yRatio) = let
-    refRatio = xRatio
-    k1       = yRatio/refRatio
-    a        = sqrt (avgVolume/k1)
+  calcBox totalArea (xRatio, yRatio) = let
+    refRatio  = xRatio
+    k1        = yRatio/refRatio
+    a         = sqrt (totalArea/k1)
     in Box2D {xMax2D = a, xMin2D = 0, yMax2D = a*k1, yMin2D = 0}
-
+  
+  calcBoxFromDist rs = let
+    diaToArea d = d*d*pi/4
+    totalArea   = Vec.foldl' (\acc d -> acc + diaToArea d) 0 rs
+    in calcBox (1.1 * totalArea)
+       
   boxDim Box2D{..} = let
     dx = (xMax2D - xMin2D)
     dy = (yMax2D - yMin2D)
@@ -75,14 +78,18 @@ instance GenRandom Point3D where
 
   defRatio = (1, 1, 1)
 
-  calcBoxSize avgVolume (xRatio, yRatio, zRatio) =
-    let
-    refRatio = xRatio
-    k1       = yRatio/refRatio
-    k2       = zRatio/refRatio
-    a        = (avgVolume/(k1*k2))**(1/3)
+  calcBox totalVolume (xRatio, yRatio, zRatio) = let
+    refRatio    = xRatio
+    k1          = yRatio/refRatio
+    k2          = zRatio/refRatio
+    a           = (totalVolume/(k1*k2))**(1/3)
     in Box3D {xMax3D=a, xMin3D=0, yMax3D=a*k1, yMin3D=0, zMax3D=a*k2, zMin3D=0}
-
+  
+  calcBoxFromDist rs = let     
+    diaToVol d  = d*d*d*pi/6
+    totalVolume = Vec.foldl' (\acc d -> acc + diaToVol d) 0 rs
+    in calcBox (1.1 * totalVolume)
+       
   boxDim Box3D{..} = let
     dx = (xMax3D - xMin3D)
     dy = (yMax3D - yMin3D)
@@ -97,26 +104,19 @@ instance GenRandom Point3D where
     c <- sampleFrom gen f
     return $ Vec3 a b c
 
--- TODO remove ratio, add auto range, calc Weight
-genFullRandomGrainDistribution:: (GenRandom v)=> Ratio v -> JobRequest -> IO (DistributedPoints v)
+-- | Generate a randomly spatial distribution of weighted points (spheres) where r = sqrt (weight)
+-- and follows the diameter distribution given by @MultiDist in @VoronoiJob.    
+genFullRandomGrainDistribution::(GenRandom v)=> Ratio v -> JobRequest -> IO (DistributedPoints v)
 genFullRandomGrainDistribution ratio VoronoiJob{..} = case composeDist gsDist of
-    Just mdist -> let
-      (gsFunc, gsMean) = (mDistFunc mdist, mDistMean mdist)
-      totalVolume      = gsMean * (fromIntegral targetNumber)
-      box              = calcBoxSize totalVolume ratio
-      delta            = boxDim box
-      getPoint         = do
-        -- test for integration sampling
-        print $ integrateMDist mdist
-
-        
-        gen <- getRandomGen seed
-        gs  <- genGrainSize mdist gen targetNumber
-        ps  <- replicateM targetNumber (genPoint gen stdUniform)
-        return $ zipWith (\gs p -> WPoint (gs / pi) (delta &! p)) gs ps
-      in getPoint >>= return . (DistributedPoints box) . Vec.fromList
+    Just mdist -> do
+      gen <- getRandomGen seed
+      ds  <- sampleN mdist gen targetNumber
+      ps  <- Vec.replicateM targetNumber (genPoint gen stdUniform)
+      let
+        (gsFunc, gsMean) = (mDistFunc mdist, mDistMean mdist)
+        -- Calculate the box size based on the total volume of sampled weighted points. 
+        box              = calcBoxFromDist ds ratio
+        delta            = boxDim box
+        wpoints          = Vec.zipWith (\d p -> WPoint (d*d/4) (delta &! p)) ds ps
+      return $ DistributedPoints box wpoints
     Nothing -> error "[GrainDistributionGenerator] No target distrubution defined."
-
-genGrainSize::MultiDist -> IORef PureMT -> Int -> IO [Double]
-genGrainSize = sampleN
-

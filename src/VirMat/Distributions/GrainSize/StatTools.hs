@@ -48,17 +48,22 @@ getRandomGen x = case x of
 composeDist::[CombDist] -> Maybe MultiDist
 composeDist [] = Nothing
 composeDist fs = let
-  dist = foldl' (\acc dist -> (\x -> acc x + (getDistFunc dist) x)) (\_ -> 0) fs
-  mean = let
-    func (sa, ma) dist = let s = getDistArea dist in (s + sa, (getDistMean dist * s) + ma)
-    (totalS, totalM) = foldl' func (0,0) fs
-    in totalM / totalS
+  dist  = foldl' (\acc dist -> (\x -> acc x + (getDistFunc dist) x)) (\_ -> 0) fs
   modes = map getDistMode fs
-  area  = foldl' (\acc dist -> getDistArea dist + acc) 0 fs
+  area  = foldl' (\acc dist -> getDistArea dist + acc) 0 fs  
+  
+  mean = let
+    func (sa, ma) dist = let
+      s = getDistArea dist
+      in (s + sa, (s*(getDistMean dist)^2) + ma)
+    (totalS, totalM) = foldl' func (0,0) fs
+    in sqrt (totalM / totalS)
+
   interval = let
     xs = concatMap (toList . getDistInterval) fs
     toList (a,b) = [a,b]
     in (minimum xs, maximum xs)
+  
   in return $ trace (show (mean, interval, modes, area)) $ MultiDist
   { mDistFunc     = dist
   , mDistMean     = mean

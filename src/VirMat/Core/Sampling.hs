@@ -28,11 +28,6 @@ import qualified Data.Vector as V
 import VirMat.IO.Export.SVG.RenderSVG
 import VirMat.Distributions.GrainSize.StatTools
 
--- TODO temp remove
-import Diagrams.Prelude ((<>), scaleY)
-import Debug.Trace
-debug :: Show a => String -> a -> a
-debug s x = trace (s ++ show x) x
 
 
 data Discrete a = DiscValue { discX::Double
@@ -52,7 +47,7 @@ data IntegrationBin =
   } deriving (Show)
                                      
 -- | Creates an initial set of bins with area based on the  upper and lower
--- limits and the list of modes. That should guarantee no distribution will be skiped.
+-- limits and the list of modes. That should guarantee no distribution will be skipped.
 getAreaBins::MultiDist -> Vector (IntegrationBin)
 getAreaBins MultiDist{..} = let
   xs    = V.fromList $ L.sort mDistModes
@@ -77,7 +72,7 @@ integral_error :: Double
 integral_error = 10e-5
 
 -- | Divide and Conquer algorithm for subdivide in small bins until
--- their area error reaches a predifined minmum.
+-- their area error reaches a predefined minimum.
 divConAreaBin :: (Double -> Double) -> IntegrationBin -> (Vector (IntegrationBin) -> Vector (IntegrationBin))
 divConAreaBin func ia@IB{..} = let
   x     = (xmax + xmin) / 2
@@ -106,7 +101,8 @@ integrateMDist mdist = let
   -- The integral of f(t) from a to b is the vaule of the area at b
   in V.scanl' (\acc x -> DiscValue (xmax x) (discY acc + area x)) init areas 
      
-     
+-- | Find a vaule by inversion function. Given a Y vaule, find the corresponding
+-- X value in the discrete cumulative function.    
 invertFx::Vector (Discrete Double) -> Double -> Maybe Double
 invertFx integral y = let
   size = V.length integral 
@@ -139,12 +135,17 @@ normalize df = let
   max = discY $ V.maximumBy (\a b -> compare (discY a) (discY b)) df
   in V.map (\x -> x {discY = (discY x) / max}) df
 
-sampleN::MultiDist -> IORef PureMT -> Int -> IO [Double]
+-- | Sample N diameter values from @MultiDist distribution.
+sampleN::MultiDist -> IORef PureMT -> Int -> IO (Vector Double)
 sampleN dist gen n = do
   let int = normalize $ integrateMDist dist
-  rnd <- replicateM n $ sampleFrom gen stdUniform
-  return $ mapMaybe (invertFx int) rnd
+  rnd <- V.replicateM n $ sampleFrom gen stdUniform
+  return $ V.foldl' (\acc x -> case invertFx int x of
+                        Just p -> p `V.cons` acc
+                        _      -> acc
+                    ) V.empty rnd
 
+-- | Sample only one diameter value from @MultiDist distribution.
 sampleOne::Vector (Discrete Double) -> Double -> Maybe Double
 sampleOne dist rnd = let
   int = normalize dist
