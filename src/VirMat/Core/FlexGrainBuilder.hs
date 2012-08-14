@@ -250,21 +250,38 @@ findVertex ps id = let
       
   in findLemo [0 .. Vec.length ps -1]
 
+evalPatchs :: Vector Point3D -> FlexFace -> Vector (Patch Point3D)
+evalPatchs ps FlexFace{..} = Vec.map (evalPatch ps) patchs
+
+getAllGBPatchs::FlexMicro -> Int -> Vector (Patch Vec3)
+getAllGBPatchs FlexMicro{..} n = let
+  ps      = Vec.fromList $ IM.elems controlPoints
+  faces   = Vec.fromList $ M.elems surfaces
+  patchs  = Vec.concatMap (evalPatchs $ Vec.map controlPoint ps) faces
+  subdAll = Vec.map subdivide
+  in Vec.foldl' (\acc x -> x acc) patchs (Vec.replicate n subdAll)
+
+getAllGBTriangles::FlexMicro -> Int -> Vector (Vec3, Vec3, Vec3)
+getAllGBTriangles fm n = let
+  x = Vec.map patchToTriangles $ getAllGBPatchs fm n
+  evalTri (tris, points) = let
+    func acc (a,b,c) = (points!a, points!b, points!c) `Vec.cons` acc
+    in Vec.foldl' func Vec.empty tris
+  in Vec.concatMap evalTri x
+
+
 writeFM out fm n = let
   vtks = renderFlexMicroFullGrain fm n
   in writeMultiVTKfile (text2Path out) vtks
 
-
+-- | Render microstructure with n level of subdivision to a VTK data.
+-- One surface shared between two grain. 
 renderFlexMicro::FlexMicro -> Int -> Vector (VTK Point3D)
-renderFlexMicro FlexMicro{..} n = let
-  ps      = Vec.fromList $ IM.elems controlPoints
-  faces   = Vec.fromList $ M.elems surfaces
-  patchs  = Vec.concatMap (evalPatchs $ Vec.map controlPoint ps) faces
-  patchs' = Vec.foldl' (\acc x -> x acc) patchs (Vec.replicate n subdAll)
-  subdAll = Vec.map subdivide
-  in Vec.map renderPatch patchs'
-     
--- render each face twice (a set of faces per grains) with ID 
+renderFlexMicro fm n = Vec.map renderPatch $ getAllGBPatchs fm n
+
+-- TODO try to merge with the above funcs.
+-- | Render microstructure with n level of subdivision to a VTK data.
+-- Render each face (surface) twice, one per grain with IDGrain.
 renderFlexMicroFullGrain::FlexMicro -> Int -> Vector (VTK Point3D)
 renderFlexMicroFullGrain FlexMicro{..} n = let
   ps = Vec.fromList $ IM.elems controlPoints
@@ -280,8 +297,3 @@ renderFlexMicroFullGrain FlexMicro{..} n = let
                    ) gs
 
 
-evalPatchs :: Vector Point3D -> FlexFace -> Vector (Patch Point3D)
-evalPatchs ps FlexFace{..} = Vec.map (evalPatch ps) patchs
-
-
-     
