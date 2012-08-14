@@ -11,6 +11,7 @@ module VirMat.Distributions.GrainSize.GrainDistributionGenerator
 , DistributedPoints(..)
 , calcBox
 , defRatio
+, randomSO3
 ) where
 
 import Control.Monad (replicateM, liftM, foldM)
@@ -120,3 +121,16 @@ genFullRandomGrainDistribution ratio VoronoiJob{..} = case composeDist gsDist of
         wpoints          = Vec.zipWith (\d p -> WPoint (d*d/4) (delta &! p)) ds ps
       return $ DistributedPoints box wpoints
     Nothing -> error "[GrainDistributionGenerator] No target distrubution defined."
+
+randomSO3 :: JobRequest -> Int -> IO (Vector Vec3)
+randomSO3 VoronoiJob{..} n = do
+  gen <- getRandomGen seed
+  let
+    so3 = do
+    p <- genPoint gen (uniform (-1) 1)
+    let normP = norm p
+      in if normP > 1
+         then so3
+         else return $ p &* (1/normP)
+  Vec.replicateM n so3
+
