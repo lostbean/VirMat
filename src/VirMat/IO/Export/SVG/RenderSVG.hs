@@ -21,6 +21,7 @@ import Diagrams.Backend.SVG
 import DeUni.DeWall
 
 import Hammer.Math.Vector hiding (Vector)
+import Hammer.Math.SphereProjection
 
 import VirMat.Core.VoronoiBuilder
 
@@ -154,6 +155,44 @@ renderPlot plot = let
      # translate (r2 $ head plot)
      # lc blue
      # lw 0.01
+
+
+-- ============================== Sphere Projection ============================
+-- TODO add legend
+-- | Render a grid for the chosen projection 
+renderSO3ProjGrid :: SphereProjection -> Diagram SVG R2
+renderSO3ProjGrid = drawMaxR . getSO3ProjMaxDist
+  where
+    putText t s pos = text t
+      # fontSize s
+      # fc black
+      # translate (r2 pos)
+    drawMaxR rMax = circle rMax
+      # lc black
+      # lw 0.2
+
+-- | Plot a equaled area pole figure regarding the external frame reference (X,Y,Z or ND,TD,RD).
+-- Plots both half-spheres overlapped. 
+renderSO3Porj :: SphereProjection -> Vector Vec3 -> Diagram SVG R2
+renderSO3Porj projType normals = let
+  r          = (getSO3ProjMaxDist projType) / 150
+  func acc n = case getSO3ProjFunc projType n of
+    Just v -> acc <> drawpoint (v2r v)
+    _      -> acc
+  drawpoint p = circle r
+    # lw 0
+    # lcA (red `withOpacity` 0.3)
+    # fcA (red `withOpacity` 0.3)
+    # translate p
+  in Vec.foldl' func mempty normals
+  
+renderPoleFigureGB :: (SphereProjSymm -> SphereProjection) -> Vector Vec3 -> Diagram SVG R2
+renderPoleFigureGB projType normals = let
+  sp = projType InvProjSymm
+  in renderSO3Porj sp normals <> renderSO3ProjGrid sp
+
+
+-- ============================== Histogram  ============================
 
 renderHistogram::Double -> Double -> Double -> [Double] -> Diagram SVG R2
 renderHistogram initial final step yAxe = let
