@@ -6,39 +6,36 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module VirMat.Distributions.GrainSize.GrainDistributionGenerator
-( genFullRandomGrainDistribution
-, genPoint
-, DistributedPoints(..)
-, calcBox
-, defRatio
-, randomSO3
-) where
+  ( genFullRandomGrainDistribution
+  , genPoint
+  , DistributedPoints(..)
+  , calcBox
+  , defRatio
+  , randomSO3
+  ) where
 
-import Control.Monad (replicateM, liftM, foldM)
-import Control.Monad.Loops (iterateUntil)
-import Control.Monad.ST (runST)
-import qualified Data.Vector as Vec
-import Data.Vector (Vector, (!))
-import Data.IORef
-import Data.Random
-import Data.Random.RVar
-import Data.Random.Source.StdGen
-import System.Random.Mersenne.Pure64
+import qualified Data.Vector as V
 
-import qualified Hammer.Math.Vector as AlgLin
-import Hammer.Math.Vector hiding (Vector)
+import           Data.Vector (Vector)
 
-import DeUni.DeWall
+import           Data.IORef
+import           Data.Random
+import           System.Random.Mersenne.Pure64
 
-import VirMat.Distributions.GrainSize.StatTools
-import VirMat.IO.Import.Types
-import VirMat.Core.Sampling
+import           Hammer.Math.Algebra
+import           DeUni.DeWall
+
+import           VirMat.Distributions.GrainSize.StatTools
+import           VirMat.IO.Import.Types
+import           VirMat.Core.Sampling
+
 
 data DistributedPoints a =
   DistributedPoints { box      :: Box a
-                    , setPoint :: SetPoint a }
+                    , setPoint :: SetPoint a
+                    } 
 
-class (AlgLin.Vector v, AlgLin.Pointwise v)=> GenRandom v where
+class (MultiVec v, Pointwise v)=> GenRandom v where
   type Ratio v    :: *
   defRatio        :: Ratio v
   calcBox         :: Double -> Ratio v -> Box v
@@ -59,7 +56,7 @@ instance GenRandom Point2D where
   
   calcBoxFromDist rs = let
     diaToArea d = d*d*pi/4
-    totalArea   = Vec.foldl' (\acc d -> acc + diaToArea d) 0 rs
+    totalArea   = V.foldl' (\acc d -> acc + diaToArea d) 0 rs
     in calcBox (1.1 * totalArea)
        
   boxDim Box2D{..} = let
@@ -68,8 +65,10 @@ instance GenRandom Point2D where
     in Vec2 dx dy
 
   genPoint gen f = do
-    -- To avoid repetition on the pseudo-random generator, use one external gen
-    -- wrapped in an StateMonad. Or for internal gen use : "gen <- getRandomGen"
+    -- To avoid repetition on the pseudo-random generator,
+    -- use one external gen
+    -- wrapped in an StateMonad. Or for internal gen use:
+    -- "gen <- getRandomGen"
     a <- sampleFrom gen f
     b <- sampleFrom gen f
     return $ Vec2 a b
@@ -84,11 +83,13 @@ instance GenRandom Point3D where
     k1          = yRatio/refRatio
     k2          = zRatio/refRatio
     a           = (totalVolume/(k1*k2))**(1/3)
-    in Box3D {xMax3D=a, xMin3D=0, yMax3D=a*k1, yMin3D=0, zMax3D=a*k2, zMin3D=0}
+    in Box3D { xMax3D=a,    xMin3D=0
+             , yMax3D=a*k1, yMin3D=0
+             , zMax3D=a*k2, zMin3D=0 }
   
   calcBoxFromDist rs = let     
     diaToVol d  = d*d*d*pi/6
-    totalVolume = Vec.foldl' (\acc d -> acc + diaToVol d) 0 rs
+    totalVolume = V.foldl' (\acc d -> acc + diaToVol d) 0 rs
     in calcBox (1.1 * totalVolume)
        
   boxDim Box3D{..} = let
@@ -112,13 +113,14 @@ genFullRandomGrainDistribution ratio VoronoiJob{..} = case composeDist gsDist of
     Just mdist -> do
       gen <- getRandomGen seed
       ds  <- sampleN mdist gen targetNumber
-      ps  <- Vec.replicateM targetNumber (genPoint gen stdUniform)
+      ps  <- V.replicateM targetNumber (genPoint gen stdUniform)
       let
-        (gsFunc, gsMean) = (mDistFunc mdist, mDistMean mdist)
-        -- Calculate the box size based on the total volume of sampled weighted points. 
-        box              = calcBoxFromDist ds ratio
-        delta            = boxDim box
-        wpoints          = Vec.zipWith (\d p -> WPoint (d*d/4) (delta &! p)) ds ps
+        --(gsFunc, gsMean) = (mDistFunc mdist, mDistMean mdist)
+        -- Calculate the box size based on the total volume of
+        -- sampled weighted points. 
+        box     = calcBoxFromDist ds ratio
+        delta   = boxDim box
+        wpoints = V.zipWith (\d p -> WPoint (d*d/4) (delta &! p)) ds ps
       return $ DistributedPoints box wpoints
     Nothing -> error "[GrainDistributionGenerator] No target distrubution defined."
 
@@ -132,5 +134,5 @@ randomSO3 VoronoiJob{..} n = do
       in if normP > 1
          then so3
          else return $ p &* (1/normP)
-  Vec.replicateM n so3
+  V.replicateM n so3
 

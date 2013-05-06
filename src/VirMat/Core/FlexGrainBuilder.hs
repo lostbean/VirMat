@@ -5,42 +5,37 @@
 
 module VirMat.Core.FlexGrainBuilder where
 
--- External modules
-import qualified Data.List as L
-import Data.List (null, foldl', sortBy)
-import qualified Data.Map as M
-import Data.Map (Map)
-import qualified Data.IntMap as IM
-import Data.IntMap (IntMap, mapWithKey)
-import qualified Data.Set as S
-import Data.Set (Set)
-import qualified Data.IntSet as IS
-import Data.IntSet (IntSet)
-import qualified Data.Vector as Vec
-import Data.Vector (Vector, (!))
-import Data.Maybe
-import Control.Monad (liftM)
-import Control.Monad.State
+import qualified Data.List           as L
+import qualified Data.Map            as M
+import qualified Data.IntMap         as IM
+import qualified Data.Set            as S
+import qualified Data.IntSet         as IS
+import qualified Data.Vector         as V
+import qualified Data.Vector.Unboxed as VU
 
-import Hammer.Math.Vector hiding (Vector)
+import           Data.Map      (Map)
+import           Data.List     (null, foldl', sortBy)
+import           Data.IntMap   (IntMap, mapWithKey)
+import           Data.Set      (Set)
+import           Data.IntSet   (IntSet)
+import           Data.Vector   (Vector, (!))
+import           Control.Monad (liftM)
 
-import DeUni.Dim3.Base3D
-import DeUni.Dim2.Base2D
-import DeUni.Types
+import           Control.Monad.State
+import           Data.Maybe
+import           DeUni.Dim2.Base2D
+import           DeUni.Dim3.Base3D
+import           DeUni.Types
+import           Hammer.Math.Algebra
+import           Hammer.Render.VTK.VTKRender
+import           SubZero.Base hiding (Point3D)
+import           SubZero.Mesh
+import           SubZero.Subdivide
 
-import SubZero.Mesh
-import SubZero.Subdivide
-import SubZero.Base hiding (Point3D)
+import           VirMat.Core.VoronoiBuilder
+import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
 
-import VirMat.Core.VoronoiBuilder
-
-
-import Hammer.Render.VTK.VTKRender
-import Hammer.Render.VTK.Base
-import VirMat.Distributions.GrainSize.GrainDistributionGenerator
-
-
-import Debug.Trace (trace)
+--import Debug.Trace (trace)
 
 
 type CP0DID = Int
@@ -126,12 +121,12 @@ addGrain VoronoiGrain{..} = do
   modify (\x -> x { grains = IM.insert grainCenterIx  ins (grains x)})
   
 
-combCP::ControlPoint -> ControlPoint -> ControlPoint
+combCP :: ControlPoint -> ControlPoint -> ControlPoint
 combCP cp1 cp2 = cp1 { surfaceMembers = surfaceMembers cp1 `S.union` surfaceMembers cp2
                      , grainMembers = grainMembers cp1 `IS.union` grainMembers cp2 }
 
 
-addFace::Int -> VoronoiFace Point3D -> MicroState PairID
+addFace :: Int -> VoronoiFace Point3D -> MicroState PairID
 addFace grainID VoronoiFace{..} = let
   insCP id value = let
     ins = IM.insertWith combCP id (CP { controlPoint   = value
@@ -209,12 +204,12 @@ addFace grainID VoronoiFace{..} = let
       Nothing   -> put $ micro { surfaces = M.insert (PairID (grainID, faceToIx)) newFace surfaces }
     return (PairID (grainID, faceToIx))
                    
-buildPatch::[Int] -> [Int] -> Int -> Vector(Patch Int)
+buildPatch :: [Int] -> [Int] -> Int -> Vector (Patch Int)
 buildPatch quadrupleJunction tripleline faceCP  = let
   edges  = getEdges quadrupleJunction tripleline
   tris   = map (\(a,b) -> (a,b,faceCP)) edges
-  mesh   = buildMesh tris
-  in Vec.fromList $ map (makepatch mesh quadrupleJunction) tris 
+  mesh   = buildMesh tris quadrupleJunction
+  in mesh -- V.fromList $ map (makepatch mesh quadrupleJunction) tris 
 
 getEdges :: [a] -> [a] -> [(a, a)]
 getEdges a b = let
@@ -227,8 +222,8 @@ getEdges a b = let
   
   in intercalate a b
 
-
 -- ================================ Tools ========================================
+
 findVertex :: Vector (Patch Int) -> Int -> Maybe (Patch Int, PatchPos)
 findVertex ps id = let
   pos n = [PatchPos(0,0), PatchPos(0,n), PatchPos(n,n)]
@@ -248,52 +243,49 @@ findVertex ps id = let
       Just p  -> Just (ps!i, p)
       Nothing -> findLemo is
       
-  in findLemo [0 .. Vec.length ps -1]
+  in findLemo [0 .. V.length ps -1]
 
 evalPatchs :: Vector Point3D -> FlexFace -> Vector (Patch Point3D)
-evalPatchs ps FlexFace{..} = Vec.map (evalPatch ps) patchs
+evalPatchs ps FlexFace{..} = V.map (evalPatch ps) patchs
 
-getAllGBPatchs::FlexMicro -> Int -> Vector (Patch Vec3)
+getAllGBPatchs :: FlexMicro -> Int -> Vector (Patch Vec3)
 getAllGBPatchs FlexMicro{..} n = let
-  ps      = Vec.fromList $ IM.elems controlPoints
-  faces   = Vec.fromList $ M.elems surfaces
-  patchs  = Vec.concatMap (evalPatchs $ Vec.map controlPoint ps) faces
-  subdAll = Vec.map subdivide
-  in Vec.foldl' (\acc x -> x acc) patchs (Vec.replicate n subdAll)
+  ps      = V.fromList $ IM.elems controlPoints
+  faces   = V.fromList $ M.elems surfaces
+  patchs  = V.concatMap (evalPatchs $ V.map controlPoint ps) faces
+  subdAll = V.map subdivide
+  in V.foldl' (\acc x -> x acc) patchs (V.replicate n subdAll)
 
-getAllGBTriangles::FlexMicro -> Int -> Vector (Vec3, Vec3, Vec3)
+getAllGBTriangles :: FlexMicro -> Int -> Vector (Vec3, Vec3, Vec3)
 getAllGBTriangles fm n = let
-  x = Vec.map patchToTriangles $ getAllGBPatchs fm n
+  x = V.map patchToTriangles $ getAllGBPatchs fm n
   evalTri (tris, points) = let
-    func acc (a,b,c) = (points!a, points!b, points!c) `Vec.cons` acc
-    in Vec.foldl' func Vec.empty tris
-  in Vec.concatMap evalTri x
+    func acc (a,b,c) = (points!a, points!b, points!c) `V.cons` acc
+    in VU.foldl' func V.empty tris
+  in V.concatMap evalTri x
 
 
 writeFM out fm n = let
   vtks = renderFlexMicroFullGrain fm n
-  in writeMultiVTKfile (text2Path out) vtks
+  in writeMultiVTKfile out vtks
 
 -- | Render microstructure with n level of subdivision to a VTK data.
 -- One surface shared between two grain. 
-renderFlexMicro::FlexMicro -> Int -> Vector (VTK Point3D)
-renderFlexMicro fm n = Vec.map renderPatch $ getAllGBPatchs fm n
+renderFlexMicro :: FlexMicro -> Int -> Vector (VTK Point3D)
+renderFlexMicro fm n = V.map renderPatch $ getAllGBPatchs fm n
 
 -- TODO try to merge with the above funcs.
 -- | Render microstructure with n level of subdivision to a VTK data.
 -- Render each face (surface) twice, one per grain with IDGrain.
-renderFlexMicroFullGrain::FlexMicro -> Int -> Vector (VTK Point3D)
+renderFlexMicroFullGrain :: FlexMicro -> Int -> Vector (VTK Point3D)
 renderFlexMicroFullGrain FlexMicro{..} n = let
-  ps = Vec.fromList $ IM.elems controlPoints
-  gs = Vec.fromList $ IM.elems grains
-  in Vec.concatMap (\FlexGrain{..} -> let
-                       fs     = Vec.fromList $ mapMaybe (\k -> M.lookup k surfaces) faces
-                       ids x  = addDataCells x (IDDataCell "GrainID" (\ n v c -> grainID))
-                       patchs = Vec.concatMap (evalPatchs $ Vec.map controlPoint ps) fs
-
-                       patchs' = Vec.foldl' (\acc x -> x acc) patchs (Vec.replicate n subdAll)
-                       subdAll = Vec.map subdivide
-                       in Vec.map ids $ Vec.map renderPatch patchs'
-                   ) gs
-
-
+  ps = V.fromList $ IM.elems controlPoints
+  gs = V.fromList $ IM.elems grains
+  foo FlexGrain{..} = let
+    fs     = V.fromList $ mapMaybe (\k -> M.lookup k surfaces) faces
+    ids x  = addDataCells x (mkCellAttr "GrainID" (\ n v c -> grainID))
+    patchs = V.concatMap (evalPatchs $ V.map controlPoint ps) fs
+    patchs' = V.foldl' (\acc x -> x acc) patchs (V.replicate n subdAll)
+    subdAll = V.map subdivide
+    in V.map ids $ V.map renderPatch patchs'
+  in V.concatMap foo gs

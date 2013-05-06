@@ -4,34 +4,34 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module VirMat.Core.VoronoiBuilder
-( convertDT2Voronoi
-, findGrainsTree
-, Level1(..)
-, Level2(..)
-, VoronoiGrain(..)
-, Grain
-, VoronoiFace(..)
-) where
+  ( convertDT2Voronoi
+  , findGrainsTree
+  , Level1(..)
+  , Level2(..)
+  , VoronoiGrain(..)
+  , Grain
+  , VoronoiFace(..)
+  ) where
 
--- External modules
-import qualified Data.List as L
-import Data.List (null, foldl', sortBy)
+import qualified Data.List   as L
 import qualified Data.IntSet as IS
-import Data.IntSet (IntSet)
 import qualified Data.IntMap as IM
-import Data.IntMap (IntMap, mapWithKey)
 import qualified Data.Vector as Vec
-import Data.Vector (Vector, (!))
-import Data.Maybe
-import Control.Monad (liftM)
 
-import Hammer.Math.Vector hiding (Vector)
+import           Control.Monad (liftM)
+import           Data.IntMap   (IntMap, mapWithKey)
+import           Data.IntSet   (IntSet)
+import           Data.List     (null, foldl', sortBy)
+import           Data.Vector   (Vector, (!))
 
-import DeUni.Dim3.Base3D
-import DeUni.Dim2.Base2D
-import DeUni.Types
+import           Data.Maybe
+import           Hammer.Math.Algebra
+  
+import           DeUni.Dim3.Base3D
+import           DeUni.Dim2.Base2D
+import           DeUni.Types
 
-import Debug.Trace (trace)
+--import Debug.Trace (trace)
 
 -- | Main Fucntion
 convertDT2Voronoi sP = makeGrain sP . findGrainsTree
@@ -81,7 +81,7 @@ instance (PointND a, Show (S2 a))=> Show (Level1 a) where
   show (L1 id x) = "\n\t L1: " ++ (show id) ++ (IM.foldl (\acc a -> acc ++
                    "\n\t\t " ++ show a) [] x)
 
-findNode::(VoronoiGrainBuilder a)=> SetPointer -> IntMap (S2 a) -> IntMap (IntMap (S2 a))
+findNode :: (VoronoiGrainBuilder a)=> SetPointer -> IntMap (S2 a) -> IntMap (IntMap (S2 a))
 findNode blacklist = IM.foldlWithKey func IM.empty
   where
     func acc s2ID s2 =
@@ -93,10 +93,10 @@ findNode blacklist = IM.foldlWithKey func IM.empty
           | otherwise = IM.insertWith addS2 pointPointer (IM.singleton s2ID s2) im
       in foldS2 add acc s2
 
-calcLevelOne::(VoronoiGrainBuilder a)=> SetPointer -> IntMap (S2 a) -> [Level1 a]
+calcLevelOne :: (VoronoiGrainBuilder a)=> SetPointer -> IntMap (S2 a) -> [Level1 a]
 calcLevelOne blacklist = IM.foldlWithKey (\acc id ls -> (L1 id ls):acc) [] . findNode blacklist
 
-level1to2::(VoronoiGrainBuilder a)=> SetPointer -> [Level1 a] -> [Level2 a]
+level1to2 :: (VoronoiGrainBuilder a)=> SetPointer -> [Level1 a] -> [Level2 a]
 level1to2 blacklist = map (\(L1 id x) -> L2 id (calcLevelOne (IS.insert id blacklist) x))
 
 

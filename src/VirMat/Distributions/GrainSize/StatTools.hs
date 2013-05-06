@@ -1,35 +1,33 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
-
 module VirMat.Distributions.GrainSize.StatTools
-       ( RandomSeed(..)
-       , getRandomGen
-       , freqHist
-       , autoHistWeb
-       , autoHist
-       , composeDist
-       , MultiDist (..)
-       )where
+  ( RandomSeed(..)
+  , getRandomGen
+  , freqHist
+  , autoHistWeb
+  , autoHist
+  , composeDist
+  , MultiDist (..)
+  ) where
 
--- External modules
-import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
-import Data.List (foldl')
-import qualified Data.List as L
-import Control.Monad (liftM)
-import Data.IORef
-import System.Random.Mersenne.Pure64
+import qualified Data.List   as L
 
-import Hammer.Math.Vector hiding (Vector)
+import           Data.IntMap   (IntMap)
+import           Data.List     (foldl')
+import           Control.Monad (liftM)
 
--- Internal modules
-import VirMat.IO.Import.Types
-import VirMat.IO.Export.Types
+import           Data.IORef
+import           Hammer.Math.Algebra
+import           System.Random.Mersenne.Pure64
 
-import Debug.Trace
-debug :: Show a => String -> a -> a
-debug s x = trace (s ++ show x) x
+import           VirMat.IO.Import.Types
+import           VirMat.IO.Export.Types
+
+--import Debug.Trace
+--debug :: Show a => String -> a -> a
+--debug s x = trace (s ++ show x) x
 
 data MultiDist =
   MultiDist
@@ -40,12 +38,12 @@ data MultiDist =
   , mDistArea     :: Double
   }
 
-getRandomGen::RandomSeed -> IO (IORef PureMT)
+getRandomGen :: RandomSeed -> IO (IORef PureMT)
 getRandomGen x = case x of
   NoSeed -> newPureMT >>= newIORef
   (Seed seed) ->  (return $ pureMT (fromIntegral seed)) >>= newIORef
 
-composeDist::[CombDist] -> Maybe MultiDist
+composeDist :: [CombDist] -> Maybe MultiDist
 composeDist [] = Nothing
 composeDist fs = let
   dist  = foldl' (\acc dist -> (\x -> acc x + (getDistFunc dist) x)) (\_ -> 0) fs
@@ -64,7 +62,7 @@ composeDist fs = let
     toList (a,b) = [a,b]
     in (minimum xs, maximum xs)
   
-  in return $ trace (show (mean, interval, modes, area)) $ MultiDist
+  in return $ MultiDist
   { mDistFunc     = dist
   , mDistMean     = mean
   , mDistInterval = interval
@@ -72,7 +70,7 @@ composeDist fs = let
   , mDistArea     = area
   }
 
-freqHist::Double -> Double -> Int -> [Double] -> Histogram
+freqHist :: Double -> Double -> Int -> [Double] -> Histogram
 freqHist initial final nbin dist = let
   step          = (final - initial) / (fromIntegral nbin)
   (total, hist) = foldl' add (0, IM.empty) dist
