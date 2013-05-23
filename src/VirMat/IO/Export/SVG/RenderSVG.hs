@@ -21,7 +21,7 @@ import           Diagrams.Prelude hiding (width, height, interval)
 import           Hammer.Math.SphereProjection
 import           Hammer.Math.Algebra
 
-import           VirMat.Core.VoronoiBuilder
+import           VirMat.Core.VoronoiMicro
 
 sizeSpec (width, height) = case (width, height) of
   (Nothing, Nothing) -> Absolute

@@ -4,7 +4,7 @@
 module VirMat.Run2D where
 
 import           VirMat.Types
-import           VirMat.Core.VoronoiBuilder
+import           VirMat.Core.VoronoiMicro
 import           VirMat.Core.Packer
 import           VirMat.Distributions.GrainSize.StatTools
 import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
@@ -53,7 +53,7 @@ runVirMat2D jobReq = do
       ls        = V.length ps
       psID      = [0 .. ls - 1]
       (wall, _) = runDelaunay2D box2D ps psID
-      grains    = convertDT2Voronoi ps (onlySimpleInBox2D box2D wall)
+      grains    = mkVoronoiMicro2D (onlySimpleInBox2D box2D wall)
 
     return $ Simulation { box = box2D
                         , pointSet = ps

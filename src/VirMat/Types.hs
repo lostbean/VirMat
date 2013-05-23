@@ -9,14 +9,14 @@ module VirMat.Types where
 import qualified Data.IntMap as IM
 
 import           DeUni.DeWall
-import           VirMat.Core.VoronoiBuilder
+import           VirMat.Core.VoronoiMicro
 
 data Simulation a = 
     Simulation
   { box           :: Box a
   , pointSet      :: SetPoint a
   , triangulation :: IM.IntMap (S2 a)
-  , grainSet      :: [Grain a]
+  , grainSet      :: VoronoiMicro a
   }
 
 

@@ -6,95 +6,116 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module VirMat.Distributions.GrainSize.GrainQuery
-  ( getGrainArea
-  , getGrainVolume
-  , getTotalGrainVolume
-  , getAverageGrainVolume
-  , getStdDeviationGrainVolume
-  , getTotalGrainArea
-  , getFaceAreaFracHist
+  ( getGrainVolume
+  , getVoronoiFaceArea
+  , getCentroid
+  , getAverage
+  , getStdDeviation
   , Volume (getVolume)
   , Area   (getArea)
+  , Length (getLength)
   ) where
 
-import qualified Data.IntMap as IM
+import qualified Data.Vector as V
   
-import           Data.List (foldl')
+import           Data.Vector   (Vector) 
+import           Data.List     (foldl')
 
-import           DeUni.Dim3.Base3D
 import           DeUni.Types
 import           Hammer.Math.Algebra
 
-import           VirMat.Core.VoronoiBuilder
+import           VirMat.Core.VoronoiMicro
 
 
-newtype Area   = Area
-                 { getArea :: Double
-                 } deriving (Eq, Ord, Num, Fractional, Show)
+newtype Length = Length
+  { getLength :: Double
+  } deriving (Eq, Ord, Num, Fractional, Show)
+
+newtype Area = Area
+  { getArea :: Double
+  } deriving (Eq, Ord, Num, Fractional, Show)
                             
 newtype Volume = Volume
-                 { getVolume :: Double
-                 } deriving (Eq, Ord, Num, Fractional, Show)
+  { getVolume :: Double
+  } deriving (Eq, Ord, Num, Fractional, Show)
 
-getGrainVolume :: VoronoiGrain Point3D -> Volume
+
+
+getGrainVolume :: (AbelianGroup a, MultiVec a, DotProd a, CrossProd a)
+               => Vector (Vector a) -> (Volume, a)
 getGrainVolume grain = let
-  volume        = foldl' (\a b -> a + (prismVolume b)) 0 (faces grain)
-  prismVolume f = (normal &. centroid) * (getArea area)
-    where area   = getFaceArea f
-          normal = getNormalToFace grain f
-          centroid = getCentroid (map (circumSphereCenter.snd) (edges f))
-  in  Volume $ abs (volume / 3)
+  facesCenters  = V.map getCentroid grain
+  grainCenter   = getCentroid facesCenters
+  volumes       = V.zipWith prismVolume facesCenters grain
+  volume        = V.sum volumes
+  prismVolume fcenter f = let
+    (area, _) = getVoronoiFaceArea f
+    normal    = getNormalToFace grainCenter f
+    in (normal &. fcenter) * (getArea area)
+  in  (Volume $ abs (volume / 3), grainCenter)
       
-getGrainArea :: VoronoiGrain Point3D -> Area
-getGrainArea grain = foldl' (\a b -> a + (getArea b)) (Area 0) (faces grain)
-  where getArea x  = getFaceArea x
+     
+triangleNormal :: (AbelianGroup a, DotProd a, CrossProd a, MultiVec a)=> a -> a -> a -> a
+triangleNormal a b c = let
+  ca = a &- c
+  cb = b &- c
+  in normalize $ ca &^ cb
+
+triangleArea :: (AbelianGroup a, DotProd a)=> a -> a -> a -> Area
+triangleArea a b c = let
+  ca = a &- c
+  cb = b &- c
+  dot = ca &. cb
+  x   = normsqr cb * normsqr ca - dot * dot
+  in Area (0.5 * sqrt x) 
+     
+triangleVolume :: (AbelianGroup a, DotProd a, CrossProd a)=> a -> a -> a -> Area
+triangleVolume a b c = Area $ (a &. (b &^ c)) / 6
 
 -- | Calculate the area of each face using a signed sum of triangles.
--- It assume that the edge pairs are given in a oriented sequnce,
+-- It assumes that the edge pairs are given in a sorted sequnce,
 -- e.g. (P0,P1,P2 .... Pn) 
-getFaceArea :: (PointND a)=> VoronoiFace a -> Area
-getFaceArea face = let
-  ps         = map (circumOrigin.snd) (edges face)
-  errFace    = error "[GrainQuery] Malformed face: face with less than 3 points."
-  area ab ac = Area $ 0.5 * sqrt (normsqr ab * normsqr ac - (ab &. ac)^2)
-  -- the result will not make sense if the list conteins less than 3 points
-  sumTri (a:as) = thunkSum as
-    where
-      thunkSum (b:c:xs) = area (b &- a) (c &- a)  + thunkSum (c:xs)
-      -- boundary condition for a non empty list set
-      thunkSum [a]        = 0
-      thunkSum []         = errFace
-  sumTri _  = errFace
-  in sumTri ps
+getVoronoiFaceArea :: (AbelianGroup a, DotProd a, MultiVec a)
+                   => Vector a -> (Area, a)
+getVoronoiFaceArea face = let
+  center = getCentroid face
+  stop = V.length face - 1
+  sumTri n
+    | n >= stop = 0
+    | otherwise = let
+      a = face V.! n
+      b = face V.! (n + 1)
+      in sumTri (n + 1) + triangleArea a b center 
+  in (sumTri 1, center)
 
-getNormalToFace :: VoronoiGrain Point3D -> VoronoiFace Point3D -> Vec3
-getNormalToFace g f = normalize $ (faceTo f) &- (grainCenter g)
-
-getCentroid :: [Vec3] -> Vec3
-getCentroid [] = zero
-getCentroid xt@(x:xs) = (foldl' (&+) x xs) &* k
-  where k = 1 / (fromIntegral $ length xt)
-        
--- TODO change better name or create a class
-getFaceAreaFracHist :: (PointND a)=> [VoronoiFace a] -> [Double]
-getFaceAreaFracHist = map (getArea.getFaceArea)
-
-getTotalGrainVolume :: [VoronoiGrain Point3D] -> Volume
-getTotalGrainVolume = foldl' (\acc x -> (getGrainVolume x) + acc) 0
-
-getTotalGrainArea :: [VoronoiGrain Point3D] -> Area
-getTotalGrainArea = foldl' (\acc x -> (getGrainArea x) + acc) 0
-
-getAverageGrainVolume :: [VoronoiGrain Point3D] -> Volume
-getAverageGrainVolume [] = 0
-getAverageGrainVolume gs = (getTotalGrainVolume gs) / (Volume $ fromIntegral $ length gs)
-
-getStdDeviationGrainVolume :: [VoronoiGrain Point3D] -> Volume
-getStdDeviationGrainVolume [] = 0
-getStdDeviationGrainVolume gs = totDev / n
+getNormalToFace :: (AbelianGroup a, CrossProd a, DotProd a, MultiVec a)
+                => a -> Vector a -> a
+getNormalToFace center face
+  | V.length face <= 2 = zero
+  | dir           >  0 = neg n
+  | otherwise          = n
   where
-    totDev = foldl' (\acc x -> acc + (avg-(getGrainVolume x))^2) 0 gs
-    avg = getAverageGrainVolume gs
-    n = Volume $ fromIntegral $ length gs
+    a = face V.! 0
+    b = face V.! 1
+    c = face V.! 2
+    n = normalize $ (a &- b) &^ (c &- b)
+    dir = n &. (center &- a)
+
+getCentroid :: (AbelianGroup a, MultiVec a)=> Vector a -> a
+getCentroid v = (V.foldl' (&+) zero v) &* k
+  where k = 1 / (fromIntegral $ V.length v)
+
+getAverage :: (Num a, Fractional a)=> [a] -> a
+getAverage gs = let
+  (total, n) = foldl' (\(vacc, nacc) x -> (vacc + x, nacc + 1)) (0, 0) gs
+  in total / n
+
+getStdDeviation :: (Num a, Fractional a)=> [a] -> a
+getStdDeviation [] = 0
+getStdDeviation gs = totDev / n
+  where
+    totDev = foldl' (\acc x -> acc + (avg - x) * (avg - x)) 0 gs
+    avg    = getAverage gs
+    n      = fromIntegral $ length gs
 
 

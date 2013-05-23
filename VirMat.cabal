@@ -32,6 +32,7 @@ Executable virmat
                       , hammer                 == 0.2.*
                       , DeUni                  == 0.3.*
                       , containers             == 0.5.*
+                      , unordered-containers   == 0.2.*
                       , vector                 == 0.10.*
                       , SubZero                == 0.1.*
                       , aeson                  == 0.6.*
@@ -63,6 +64,7 @@ library
                       , hammer                 == 0.2.*
                       , DeUni                  == 0.3.*
                       , containers             == 0.5.*
+                      , unordered-containers   == 0.2.*
                       , vector                 == 0.10.*
                       , SubZero                == 0.1.*
                       , aeson                  == 0.6.*
@@ -84,10 +86,10 @@ library
                         VirMat.Run3D
                         VirMat.Types
 
-                        VirMat.Core.VoronoiBuilder
                         VirMat.Core.Packer
                         VirMat.Core.Sampling
-                        VirMat.Core.FlexGrainBuilder
+                        VirMat.Core.VoronoiMicro
+                        VirMat.Core.FlexMicro
                         
                         VirMat.Distributions.GrainSize.StatTools
                         VirMat.Distributions.GrainSize.GrainDistributionGenerator
@@ -95,7 +97,7 @@ library
                         VirMat.Distributions.Texture.DiscreteODF
 
                         VirMat.IO.Export.Types
-                        VirMat.IO.Export.VTK.VTKVoronoiGrainRender
+                        VirMat.IO.Export.VTK.FlexMicro
                         VirMat.IO.Export.SVG.RenderSVG
 
                         VirMat.IO.Import.Types
