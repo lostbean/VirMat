@@ -118,7 +118,6 @@ faceCenter ps vs
 sortEdges :: (SeqSeg a, SeqInv a)=> Vector a -> Maybe (Vector a)
 sortEdges vec = case getVecSegs vec of
   [LoopSeq     c] -> return c
-  [OpenSeq _ _ c] -> return c
   _               -> Nothing
 
 instance SeqComp Int
