@@ -8,17 +8,17 @@ module VirMat.Core.FlexMicro
        , mkFlexMicro
        ) where
 
-import qualified Data.List           as L
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet        as HS
 import qualified Data.IntSet         as IS
 import qualified Data.Vector         as V
 
-import           Data.Vector   (Vector)
+import           Data.Vector         (Vector)
 
 import           Data.Maybe
 import           Hammer.Math.Algebra
 import           Hammer.MicroGraph
+import           Hammer.Math.SortSeq
 import           SubZero.SubTwo
 
 import           VirMat.Core.VoronoiMicro
@@ -52,9 +52,9 @@ getFlexVertex MicroGraph{..} = let
 getFlexEdge ::  VoronoiMicro Vec3 -> FlexMicro -> FlexMicro
 getFlexEdge vm@MicroGraph{..} (FlexMicro fm ps) = let
   psSize     = V.length ps
-  es_clean    = mapMaybe foo $ HM.toList microEdges
+  es_clean   = fst $ HM.foldlWithKey' foo (V.empty, psSize) microEdges
   getter i m = getPropValue =<< getVertexProp i m
-  foo (k, p) = do
+  foo acc@(vec, n) k p = maybe acc id $ do
     conn <- getPropConn p
     case conn of
       FullEdge a b -> do
@@ -62,12 +62,13 @@ getFlexEdge vm@MicroGraph{..} (FlexMicro fm ps) = let
         ib <- getter b fm
         va <- getter a vm
         vb <- getter b vm
-        return (k, (p, va, vb, ia, ib))
+        let prop = setPropValue p $ V.fromList [ia, n, ib]
+            avg  = 0.5 *& (va &+ vb)
+            v    = (k, avg, prop)
+        return (vec `V.snoc` v, n + 1)
       _            -> Nothing
-  fzip (k, (p, _, _, ia, ib)) i = (k, setPropValue p $ V.fromList [ia, i, ib])
-  favg (_, (_, va, vb, _, _))   = 0.5 *& (va &+ vb)
-  vv = V.fromList  $ map favg es_clean
-  vh = HM.fromList $ zipWith fzip es_clean [psSize..]
+  vv = V.map (\(_,x,_) -> x) es_clean
+  vh = HM.fromList . V.toList $ V.map (\(k,_,p) -> (k,p)) es_clean
   fg = fm { microEdges = vh }
   fp = ps V.++ vv
   in FlexMicro fg fp
@@ -75,40 +76,58 @@ getFlexEdge vm@MicroGraph{..} (FlexMicro fm ps) = let
 getFlexFace :: VoronoiMicro Vec3 -> FlexMicro -> FlexMicro
 getFlexFace MicroGraph{..} (FlexMicro fm ps) = let
   psSize   = V.length ps
-  fs_clean = mapMaybe foo $ HM.toList microFaces
-  getter i = getPropValue =<< getEdgeProp i fm
-  foo (k, p) = do
+  fs_clean = fst $ HM.foldlWithKey' foo (V.empty, psSize) microFaces
+  getEdge eid = getPropValue =<< getEdgeProp eid fm 
+  foo acc@(vec, n) k p = maybe acc id $ do
     conn <- getPropConn p
-    case mapMaybe getter (HS.toList conn) of
-      [] -> Nothing
-      es -> return (k, p, es)
-  fzip (k, p, es) i = (k, setPropValue p $ mkMesh es i)
-  vh = HM.fromList $ zipWith fzip fs_clean [psSize..]
-  fp = V.fromList  $ map (\(_, _, es) -> faceCenter ps es) fs_clean
+    let es = HS.foldl' (\acu eid -> maybe acu (V.snoc acu) (getEdge eid)) V.empty conn
+    mesh <- mkMesh es n
+    fc   <- faceCenter ps es
+    let v = (k, setPropValue p mesh, fc)
+    return (vec `V.snoc` v, n + 1)
+  vh = HM.fromList . V.toList $ V.map (\(k,m,_) -> (k,m)) fs_clean
+  fp = V.map (\(_,_,p) -> p) fs_clean
   fg = fm { microFaces = vh }
   in FlexMicro fg (ps V.++ fp)
 
-mkMesh :: [Vector Int] -> Int -> MeshConn
-mkMesh es fc = let
-  getTris n vec
-    | (n + 1) >= V.length vec = []
-    | otherwise = (vec V.! n, vec V.! (n+1), fc) : getTris (n+1) vec
-  ts = L.concatMap (getTris 0) es
-  getCorners v
-    | V.length v > 0 = IS.fromList [V.head v, V.last v]
-    | otherwise      = IS.empty
-  cornersSet = L.foldl' (\acc v -> acc `IS.union` getCorners v) IS.empty es
-  corners = IS.toList cornersSet
-  in buildMesh ts corners
+mkMesh :: Vector (Vector Int) -> Int -> Maybe MeshConn
+mkMesh es fc = do
+  ses <- sortEdges es
+  return $ buildMesh (toTS ses) corners
+  where
+    getTris vec = V.imap (\i x -> (x, vec V.! (i+1), fc)) (V.init vec)
+    toTS        = V.toList . V.concatMap getTris 
+    getCorners v
+      | V.length v > 0 = IS.fromList [V.head v, V.last v]
+      | otherwise      = IS.empty
+    cornersSet = V.foldl' (\acc v -> acc `IS.union` getCorners v) IS.empty es
+    corners    = IS.toList cornersSet
 
 -- | @faceCenter@ calculates the mass center of a given polygon defined by
 -- a array of points and a list of edges (reference to array of points).
 -- It expects a non-empty face otherwise a error will rise. DON'T EXPORT ME!!!
-faceCenter :: Vector Vec3 -> [Vector Int] -> Vec3
+faceCenter :: Vector Vec3 -> Vector (Vector Int) -> Maybe Vec3
 faceCenter ps vs
-  | n > 0     = total &* (1 / fromIntegral n)
-  | otherwise = error "[FlexMicro] I can't calculate the center of a empty face!"
+  | n > 0     = return $ total &* (1 / fromIntegral n)
+  | otherwise = Nothing
   where
     sumBoth (vacu, nacu) x = (vacu &+ sumFecth x, nacu + V.length x)
     sumFecth   = V.foldl' (\acc i -> acc &+ (ps V.! i)) zero
-    (total, n) = L.foldl' sumBoth (zero, 0) vs
+    (total, n) = V.foldl' sumBoth (zero, 0) vs
+
+sortEdges :: (SeqSeg a, SeqInv a)=> Vector a -> Maybe (Vector a)
+sortEdges vec = case getVecSegs vec of
+  [LoopSeq     c] -> return c
+  [OpenSeq _ _ c] -> return c
+  _               -> Nothing
+
+instance SeqComp Int
+
+instance (SeqComp a)=> SeqSeg (Vector a) where
+  type SeqUnit (Vector a) = a
+  seqHead = V.head
+  seqTail = V.last
+
+instance SeqInv (Vector a) where
+  seqInv = V.reverse 
+
