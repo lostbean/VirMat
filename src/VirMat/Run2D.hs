@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE  RecordWildCards #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module VirMat.Run2D where
 
@@ -68,6 +68,8 @@ onlyDistInBox box sp = V.filter ((isInBox box).point) sp
 onlySimpleInBox2D :: Box Point2D -> IM.IntMap (S2 Point2D) -> IM.IntMap (S2 Point2D)
 onlySimpleInBox2D box ls = IM.filter ((isInBox box).circleCenter) ls
 
+
+{--
 -- ================== render to HTML ========================
 
 renderSizeX :: Integer
@@ -166,3 +168,4 @@ printMicro name Simulation{..} = let
      ("microstructure_" ++ name ++ ".svg")
      (sizeSpec (Just renderSizeX, Just renderSizeY)) $
      diaUP1 === diaUP2 === diaUP3
+ --}

@@ -13,11 +13,11 @@ Cabal-version:       >= 1.8
 Build-type:          Simple
 Category:            Data, Math
 
-Flag cmdline
+Flag generator
     Description:        Build the exectable using command line.
-    Default:            False
+    Default:            True
 
-Executable virmat
+Executable virmatgen
     hs-source-dirs:     src
     main-is:            Main.hs
     ghc-options:        -Wall
@@ -49,7 +49,7 @@ Executable virmat
                       , transformers           == 0.3.*
                       , mtl                    == 2.*
                       , parsec                 == 3.*
-    if flag(cmdline)
+    if flag(generator)
       Buildable:        True
     else
       Buildable:        False

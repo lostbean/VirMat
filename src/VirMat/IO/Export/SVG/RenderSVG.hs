@@ -54,7 +54,7 @@ renderBox2D Box2D{..} = let
      # translate boxSize
      # lc blue
      # lw 0.05
-
+{--
 renderSetGrain2D :: [VoronoiFace Point2D] -> Diagram SVG R2
 renderSetGrain2D = L.foldl'(\acc x -> renderGrain2D x <> acc) mempty 
 
@@ -67,7 +67,7 @@ renderGrain2D grain = let
      # lw 0.1
      # lc orange
      # translate (delta grain)
-
+ --}
 renderSetS2 :: Vector (WPoint Point2D) -> IntMap (S2 Point2D) -> Diagram SVG R2
 renderSetS2 ps ss = let
   func acc x = let

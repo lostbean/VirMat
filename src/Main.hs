@@ -14,18 +14,17 @@ import           Control.Applicative
 import           Data.Maybe
 import           Hammer.Math.Algebra
 import           Hammer.Math.SphereProjection
-import           SubZero.VertexEval
-import           SubZero.Base
+import           SubZero.SubTwo
 
 import           VirMat.IO.Import.CommandLineInput
-import           VirMat.Core.FlexGrainBuilder
+import           VirMat.Core.FlexMicro
 import           VirMat.Run2D
 import           VirMat.Run3D
 import           VirMat.Types
 import           VirMat.IO.Import.Types
 import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
 import           VirMat.IO.Export.SVG.RenderSVG
-
+import           VirMat.IO.Export.VTK.FlexMicro
 
 import           Debug.Trace
 debug :: Show a => String -> a -> a
@@ -41,9 +40,12 @@ main = do
     Dimension3D -> go3D jobReq
 
 -- ============================== 3D ====================================== 
+
+go3D :: JobRequest -> IO ()
 go3D jobReq = do
   simul <- runVirMat3D jobReq
-  let fm = makeMicroFlex $ grainSet simul
+  let fm = mkFlexMicro $ grainSet simul
+{--
   --writeFM "fm.vtu" fm 2
   let
     quads = IM.elems $ mapCP0D fm
@@ -53,15 +55,14 @@ go3D jobReq = do
     upQ    = replicate 10 updateQuads
     quadFM = L.foldl' (\acc f -> f acc) fm upQ
 
-{--  let
+  let
     ts = getAllGBTriangles fm 0
     ns = V.map getNormalTri ts
     plot = renderPoleFigureGB Lambert ns
     in renderSVGFile "pf.svg" (sizeSpec (Just 200, Nothing)) plot
-
 --}
+
   rand <- randomSO3 jobReq 3000
-  print rand
   renderSVGFile "pfRandStero.svg" (sizeSpec (Just 200, Nothing)) $ renderPoleFigureGB Sterographic rand
   renderSVGFile "pfRandLambe.svg" (sizeSpec (Just 200, Nothing)) $ renderPoleFigureGB Lambert rand
 
@@ -69,7 +70,8 @@ go3D jobReq = do
   --writeWPointsVTKfile "points.vtu" (pointSet simul)
   
   print "Get Voronoi..."
-  --writeVoronoiGrainVTKfile "voronoi.vtu" (triangulation simul) (grainSet simul)
+  writeFlexMicroVTK "voronoi.vtu"   0 fm
+  writeFlexMicroVTK "voronoi_1.vtu" 1 fm
 
   print "Get Stable Quadriple junctions..."
   -- writeFM "fmQuad.vtu" quadFM 2
@@ -81,12 +83,17 @@ go3D jobReq = do
   -- print $ listAngle quadFM
 
 -- =========================== 2D ========================================== 
+
+go2D :: JobRequest -> IO ()
 go2D jobReq = do
   simul <- runVirMat2D jobReq
-  printMicro "Final" simul
+  print "Fix SVG render."
+  --printMicro "Final" simul
 
 
--- ============================== Tools =====================================
+
+{--
+-- ============================== Quadri Junction Force Simulation =====================================
 
 getNormalTri :: (Vec3, Vec3, Vec3) -> Vec3
 getNormalTri (a, b, c) = let
@@ -134,3 +141,5 @@ getAngle fm id = let
       Just cp -> let
         sIDs   = S.elems $ surfaceMembers cp
         in mapMaybe func sIDs
+
+ --}
