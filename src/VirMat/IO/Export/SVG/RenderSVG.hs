@@ -4,39 +4,36 @@
 module VirMat.IO.Export.SVG.RenderSVG where
 
 import qualified Data.ByteString.Lazy     as BS
-import qualified Blaze.ByteString.Builder as B
-import qualified Data.List                as L
 import qualified Data.Vector              as Vec
 import qualified Data.IntMap              as IM
-  
+
 import           Text.Blaze.Svg.Renderer.Utf8 (renderSvg)
 import           Text.Blaze.Html              (Html, unsafeLazyByteString)
-import           Data.Colour                  (Colour,AlphaColour,withOpacity)
 import           Data.Vector                  (Vector)
 import           Data.IntMap                  (IntMap)
 
 import           DeUni.DeWall
 import           Diagrams.Backend.SVG
 import           Diagrams.Prelude hiding (width, height, interval)
-import           Hammer.Math.SphereProjection
+import           Hammer.Texture.SphereProjection
 import           Hammer.Math.Algebra
 
-import           VirMat.Core.VoronoiMicro
 
-sizeSpec (width, height) = case (width, height) of
+getSizeSpec :: (Maybe Int, Maybe Int) -> SizeSpec2D
+getSizeSpec (width, height) = case (width, height) of
   (Nothing, Nothing) -> Absolute
-  (Just w, Nothing)  -> Width (fromIntegral w)
+  (Just w, Nothing)  -> Width  (fromIntegral w)
   (Nothing, Just h)  -> Height (fromIntegral h)
-  (Just w, Just h)   -> Dims (fromIntegral w) (fromIntegral h)
+  (Just w, Just h)   -> Dims   (fromIntegral w) (fromIntegral h)
 
-renderSVGFile  ::  String -> SizeSpec2D -> Diagram SVG R2 -> IO ()
-renderSVGFile fileName sizeSpec dia = let
-  build = renderDia SVG (SVGOptions sizeSpec) dia
+renderSVGFile :: String -> SizeSpec2D -> Diagram SVG R2 -> IO ()
+renderSVGFile fileName spec dia = let
+  build = renderDia SVG (SVGOptions spec) dia
   in BS.writeFile fileName (renderSvg build)
 
-renderSVGHtml  ::  SizeSpec2D -> Diagram SVG R2 -> Html
-renderSVGHtml sizeSpec dia = let
-  build = renderDia SVG (SVGOptions sizeSpec) dia
+renderSVGHtml :: SizeSpec2D -> Diagram SVG R2 -> Html
+renderSVGHtml spec dia = let
+  build = renderDia SVG (SVGOptions spec) dia
   in unsafeLazyByteString (renderSvg build)
 
 closeUpOnBox :: Box Point2D -> Diagram SVG R2 -> Diagram SVG R2
@@ -56,7 +53,7 @@ renderBox2D Box2D{..} = let
      # lw 0.05
 {--
 renderSetGrain2D :: [VoronoiFace Point2D] -> Diagram SVG R2
-renderSetGrain2D = L.foldl'(\acc x -> renderGrain2D x <> acc) mempty 
+renderSetGrain2D = L.foldl'(\acc x -> renderGrain2D x <> acc) mempty
 
 renderGrain2D :: VoronoiFace Point2D -> Diagram SVG R2
 renderGrain2D grain = let
@@ -68,24 +65,27 @@ renderGrain2D grain = let
      # lc orange
      # translate (delta grain)
  --}
+
 renderSetS2 :: Vector (WPoint Point2D) -> IntMap (S2 Point2D) -> Diagram SVG R2
 renderSetS2 ps ss = let
   func acc x = let
     (a,b,c) = face2DPoints x
     in acc <> renderTri (ps!.a) (ps!.b) (ps!.c)
   in IM.foldl func mempty ss
-     
+
 renderSetS2Triangle :: Vector (WPoint Point2D) -> IntMap (S2 Point2D) -> Diagram SVG R2
 renderSetS2Triangle ps ss = let
   func acc x = let
     (a,b,c) = face2DPoints x
-    in acc <> renderTri (ps!.a) (ps!.b) (ps!.c)  
+    in acc <> renderTri (ps!.a) (ps!.b) (ps!.c)
   in IM.foldl func mempty ss
 
 renderSetS2Circle :: IntMap (S2 Point2D) -> Diagram SVG R2
 renderSetS2Circle ss = let
-  func acc x = acc <> renderCircle (circleCenter x) (sqrt . circleRadius $ x) (green `withOpacity` 0.15)
-                    # fcA (green `withOpacity` 0.15)
+  color = green `withOpacity` 0.15
+  func acc x = acc <>
+               renderCircle (circleCenter x) (sqrt . circleRadius $ x) color
+               # fcA (green `withOpacity` 0.15)
   in IM.foldl func mempty ss
 
 renderTri :: Point2D -> Point2D -> Point2D -> Diagram SVG R2
@@ -105,8 +105,10 @@ renderSetPoint2D ps = let
   rc x = renderCircle (point x) (DeUni.DeWall.radius x) (red `withOpacity` 0.10)
   in Vec.foldl' (\acc x -> acc <> rc x) mempty ps
 
+v2r :: Vec2 -> R2
 v2r (Vec2 x y) = r2 (x,y)
 
+v2p :: Vec2 -> P2
 v2p (Vec2 x y) = p2 (x,y)
 
 renderDiffArr :: Vector (WPoint Point2D) ->  Vector (WPoint Point2D) -> Diagram SVG R2
@@ -124,7 +126,7 @@ renderDisp :: Vector (WPoint Point2D) -> Vector Point2D -> Diagram SVG R2
 renderDisp arr disp = let
   ds = Vec.zip arr disp
   in Vec.foldl (\acc (x, v) -> acc <> renderVector red (point x, point x &+ v)) mempty ds
-     
+
 renderVector :: Colour Double -> (Point2D, Point2D) -> Diagram SVG R2
 renderVector color (a,b) = let
   func = v2p
@@ -136,16 +138,16 @@ renderVector color (a,b) = let
    # translate (v2r a)
 
 renderCircle :: Point2D -> Double -> AlphaColour Double -> Diagram SVG R2
-renderCircle point radius color = let
-  v = v2r point                      
-  in circle radius
+renderCircle p r color = let
+  v = v2r p
+  in circle r
      # lc black
      # fcA color
-     # translate v 
+     # translate v
   <> circle 0.2
      # fc black
      # translate v
-     
+
 renderPlot :: [(Double, Double)] -> Diagram SVG R2
 renderPlot plot = let
   curve = fromVertices $ map p2 plot
@@ -154,41 +156,30 @@ renderPlot plot = let
      # lc blue
      # lw 0.01
 
-
 -- ============================== Sphere Projection ============================
 -- TODO add legend
--- | Render a grid for the chosen projection 
-renderSO3ProjGrid  ::  SphereProjection -> Diagram SVG R2
-renderSO3ProjGrid = drawMaxR . getSO3ProjMaxDist
-  where
-    putText t s pos = text t
-      # fontSize s
-      # fc black
-      # translate (r2 pos)
-    drawMaxR rMax = circle rMax
-      # lc black
-      # lw 0.2
+-- | Render a grid for the chosen projection
+renderSO3ProjGrid  :: Diagram SVG R2
+renderSO3ProjGrid = circle 1 # lc black # lw 0.02
 
--- | Plot a equaled area pole figure regarding the external frame reference (X,Y,Z or ND,TD,RD).
--- Plots both half-spheres overlapped. 
-renderSO3Porj  ::  SphereProjection -> Vector Vec3 -> Diagram SVG R2
-renderSO3Porj projType normals = let
-  r          = (getSO3ProjMaxDist projType) / 150
-  func acc n = case getSO3ProjFunc projType n of
-    Just v -> acc <> drawpoint (v2r v)
-    _      -> acc
-  drawpoint p = circle r
-    # lw 0
-    # lcA (red `withOpacity` 0.3)
-    # fcA (red `withOpacity` 0.3)
-    # translate p
-  in Vec.foldl' func mempty normals
-  
-renderPoleFigureGB  ::  (SphereProjSymm -> SphereProjection) -> Vector Vec3 -> Diagram SVG R2
-renderPoleFigureGB projType normals = let
-  sp = projType InvProjSymm
-  in renderSO3Porj sp normals <> renderSO3ProjGrid sp
+-- | Plot a equaled area pole figure regarding the external frame reference (X,Y,Z or
+-- ND,TD,RD). Plots both half-spheres overlapped.
+renderProjPoint  :: Vec2 -> Diagram SVG R2
+renderProjPoint p = circle (0.01)
+                    # lw 0
+                    # lcA (red `withOpacity` 0.3)
+                    # fcA (red `withOpacity` 0.3)
+                    # translate (v2r p)
 
+renderStereoPoleFigure :: Vector Normal3 -> Diagram SVG R2
+renderStereoPoleFigure = let
+  foo = Vec.foldl' (\acc n -> acc <> renderProjPoint n) mempty
+  in (renderSO3ProjGrid <>) . foo . getBothProj . Vec.map steroSO3Proj
+
+renderLambertPoleFigure :: Vector Normal3 -> Diagram SVG R2
+renderLambertPoleFigure = let
+  foo = Vec.foldl' (\acc n -> acc <> renderProjPoint n) mempty
+  in (renderSO3ProjGrid <>) . foo . getBothProj . Vec.map lambertSO3Proj
 
 -- ============================== Histogram  ============================
 
@@ -207,9 +198,11 @@ renderHistogram initial final step yAxe = let
 
 renderHistogram' :: Double -> Double -> [Double] -> Diagram SVG R2
 renderHistogram' initial final yAxe = let
-  max = L.maximum yAxe
-  min = L.minimum yAxe
-  step  = 0.1 * (final - initial) / (fromIntegral . floor . sqrt . fromIntegral . length $ yAxe)
+  n :: Double
+  n = fromIntegral . length $ yAxe
+  nBinRef :: Int
+  nBinRef = floor $ sqrt n
+  step  = 0.1 * (final - initial) / (fromIntegral nBinRef)
   xAxe  = [initial, initial + step .. final]
   bar x y
     | y == 0    = mempty

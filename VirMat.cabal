@@ -94,7 +94,8 @@ library
                         VirMat.Distributions.GrainSize.StatTools
                         VirMat.Distributions.GrainSize.GrainDistributionGenerator
                         VirMat.Distributions.GrainSize.GrainQuery
-                        VirMat.Distributions.Texture.DiscreteODF
+                        VirMat.Distributions.Texture.ODFSampling
+                        --VirMat.Distributions.Texture.DiscreteODF
 
                         VirMat.IO.Export.Types
                         VirMat.IO.Export.VTK.FlexMicro

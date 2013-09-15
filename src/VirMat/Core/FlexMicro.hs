@@ -19,7 +19,7 @@ import           Data.Maybe
 import           Hammer.Math.Algebra
 import           Hammer.MicroGraph
 import           Hammer.Math.SortSeq
-import           SubZero.SubTwo
+import           SubZero
 
 import           VirMat.Core.VoronoiMicro
 
@@ -28,20 +28,20 @@ import           VirMat.Core.VoronoiMicro
 
 -- | Stores a flexible microstructure using Subdivision Surfaces. The topology and
 -- the values are store separately in order to allow fast update of values. The topology is
--- represented by @MicroGraph@.  
-data FlexMicro =
+-- represented by @MicroGraph@.
+data FlexMicro a =
   FlexMicro
-  { flexGraph  :: MicroGraph () MeshConn (Vector Int) Int -- ^ Microstructure graph
-  , flexPoints :: Vector Vec3                             -- ^ Controls points (vertices, edges and faces)  
+  { flexGraph  :: MicroGraph a MeshConn (Vector Int) Int -- ^ Microstructure graph
+  , flexPoints :: Vector Vec3                            -- ^ Controls points (vertices, edges and faces)
   } deriving (Show)
 
 -- | This function converts a Voronoi microstructure (convex polygonal geomerty)
 -- to flexible microstructure where arbitrary shape of grains are allowed.
 -- Such a feature is provide by using Subdivision Surfaces.
-mkFlexMicro :: VoronoiMicro Vec3 -> FlexMicro
+mkFlexMicro :: VoronoiMicro Vec3 -> FlexMicro ()
 mkFlexMicro vm = getFlexFace vm $ getFlexEdge vm $ getFlexVertex vm
-               
-getFlexVertex :: VoronoiMicro Vec3 -> FlexMicro
+
+getFlexVertex :: VoronoiMicro Vec3 -> FlexMicro ()
 getFlexVertex MicroGraph{..} = let
   vs_clean = filter (hasPropValue . snd) $ HM.toList microVertex
   vh = HM.fromList $ zipWith (\(k, p) i -> (k, setPropValue p i)) vs_clean [0..]
@@ -49,7 +49,7 @@ getFlexVertex MicroGraph{..} = let
   fg = initMicroGraph { microVertex = vh, microGrains = microGrains }
   in FlexMicro fg fp
 
-getFlexEdge ::  VoronoiMicro Vec3 -> FlexMicro -> FlexMicro
+getFlexEdge ::  VoronoiMicro Vec3 -> FlexMicro a -> FlexMicro a
 getFlexEdge vm@MicroGraph{..} (FlexMicro fm ps) = let
   psSize     = V.length ps
   es_clean   = fst $ HM.foldlWithKey' foo (V.empty, psSize) microEdges
@@ -73,11 +73,11 @@ getFlexEdge vm@MicroGraph{..} (FlexMicro fm ps) = let
   fp = ps V.++ vv
   in FlexMicro fg fp
 
-getFlexFace :: VoronoiMicro Vec3 -> FlexMicro -> FlexMicro
+getFlexFace :: VoronoiMicro Vec3 -> FlexMicro a -> FlexMicro a
 getFlexFace MicroGraph{..} (FlexMicro fm ps) = let
   psSize   = V.length ps
   fs_clean = fst $ HM.foldlWithKey' foo (V.empty, psSize) microFaces
-  getEdge eid = getPropValue =<< getEdgeProp eid fm 
+  getEdge eid = getPropValue =<< getEdgeProp eid fm
   foo acc@(vec, n) k p = maybe acc id $ do
     conn <- getPropConn p
     let es = HS.foldl' (\acu eid -> maybe acu (V.snoc acu) (getEdge eid)) V.empty conn
@@ -96,7 +96,7 @@ mkMesh es fc = do
   return $ buildMesh (toTS ses) corners
   where
     getTris vec = V.imap (\i x -> (x, vec V.! (i+1), fc)) (V.init vec)
-    toTS        = V.toList . V.concatMap getTris 
+    toTS        = V.toList . V.concatMap getTris
     getCorners v
       | V.length v > 0 = IS.fromList [V.head v, V.last v]
       | otherwise      = IS.empty
@@ -128,5 +128,4 @@ instance (SeqComp a)=> SeqSeg (Vector a) where
   seqTail = V.last
 
 instance SeqInv (Vector a) where
-  seqInv = V.reverse 
-
+  seqInv = V.reverse

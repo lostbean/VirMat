@@ -1,9 +1,12 @@
-{-# LANGUAGE RecordWildCards#-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE BangPatterns         #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts     #-}
 
-module VirMat.Core.Packer where
+module VirMat.Core.Packer
+       ( runPacker
+       , runPacker2D
+       ) where
 
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
@@ -32,7 +35,7 @@ runPacker n box ps wall = let
 
   (_, arrF1, wallF1) = foldl' pack (ps, ps, wall) [1..n]
 
-  pack (!ps0,!ps1,!wall1) i = let    
+  pack (!ps0,!ps1,!wall1) i = let
     time      = trace ("time " ++ show i ++ " = ") $
                 if i > smooth
                 then 0.2
@@ -44,7 +47,7 @@ runPacker n box ps wall = let
                 then (wall1, undefined)
                 else trace "triangulate" $ runDelaunay box ps2 psID2
     in (ps1,ps2,wall2)
-       
+
   in (arrF1, wallF1)
 
 runPacker2D :: Int -> Box Point2D -> SetPoint Point2D -> IntMap (S2 Point2D)
@@ -55,7 +58,7 @@ runPacker2D n box ps wall = let
 
   (_, arrF1, wallF1) = foldl' pack (ps, ps, wall) [1..n]
 
-  pack (!ps0,!ps1,!wall1) i = let    
+  pack (!ps0,!ps1,!wall1) i = let
     time      = trace ("time " ++ show i ++ " = ") $
                 testPacker box ps1 wall1 i $
                 if i > smooth then 0.2 else 0.2 -- + 0.2 * (1 - (fromIntegral i) / (fromIntegral smooth))
@@ -66,9 +69,9 @@ runPacker2D n box ps wall = let
                 then (wall1, undefined)
                 else trace "dela" $ runDelaunay box ps2 psID2
     in (ps1,ps2,wall2)
-       
+
   in (arrF1, wallF1)
-     
+
 testPacker :: (Show a)=> Box Point2D -> Vector (WPoint Vec2)
            -> IntMap (S2 Vec2) -> a -> a1 -> a1
 testPacker box pointSet triangulation i a = let
@@ -81,14 +84,14 @@ testPacker box pointSet triangulation i a = let
         -- <> renderSetS2Triangle pointSet triangulation
         -- <> renderForces pointSet forces
         <> renderDisp pointSet disp
-        
-  renderSize = 1000 :: Integer
-  renderSpec = sizeSpec (Just renderSize, Just renderSize)
+
+  renderSize = 1000
+  renderSpec = getSizeSpec (Just renderSize, Just renderSize)
   render = renderSVGFile ("microstructure_" ++ show i ++ ".svg") renderSpec diaUP
   in unsafePerformIO $ do
     render
     return a
-     
+
 sortGroup :: (Ord a) => [(a, b)] -> [(a, [b])]
 sortGroup = let
   comp a b = compare (fst a) (fst b)
@@ -97,7 +100,7 @@ sortGroup = let
   groupOrd ls@(x:_) = let
     (store, rest) = span (\a -> fst x == fst a) ls
     in (fst x, map snd store):groupOrd rest
-        
+
   in groupOrd.(sortBy comp)
 
 
@@ -106,13 +109,13 @@ force ref x
   | freeDist <= 0 = let
     f = 4 * freeDist
     -- f < 0 if x < 0
-    in dir &* (-1*f*f)  
+    in dir &* (-1*f*f)
   | otherwise     = let
     f = freeDist
     in dir &* f
   where
     -- attraction direction
-    delta    = point x &- point ref                 
+    delta    = point x &- point ref
     dir      = normalize delta
     ldelta   = norm delta
     totalR   = radius x + radius ref
@@ -123,7 +126,7 @@ evalForce sp a ns = let
   func acc x = acc &+ force (sp!a) (sp!x)
   f          = IS.foldl' func zero ns
   in f &* (1/(radius $ sp!a))
-     
+
 setForce :: (Packer a)=> IntMap (S2 a) -> SetPoint a -> Vector (Vector a)
 setForce tri sp = let
   conn     = findPointConn tri
@@ -144,7 +147,7 @@ getDisplacement :: (Packer a)=> SetPoint a -> Int -> IntSet -> Double -> a
 getDisplacement sp i ps time = let
   a    = evalForce sp i ps
   disp = a &* (time*time)
-  l    = len disp 
+  l    = len disp
   r    = radius $ sp!i
   -- cut-off displacements bigger than 2*r. It avoids multiple sphere
   -- overlaping on the coners due "keepInBox" restriction
@@ -154,15 +157,15 @@ updateSP :: (Packer a)=> Box a -> IntMap (S2 a) -> SetPoint a -> SetPoint a
          -> Double -> Double -> SetPoint a
 updateSP box tri sp0 sp1 damp time = let
   conn     = findPointConn tri
-  update i = let 
+  update i = let
     p0     = sp0!.i
     p1     = sp1!.i
     new ps = let
       -- Verlet integration with damping effect (damp = [0,1])
       deltaPos = getDisplacement sp1 i ps time
       newP     = ((2-damp) *& p1) &- ((1-damp) *& p0) &+ deltaPos
-      in keepInBox box newP  
-    in case IM.lookup i conn of 
+      in keepInBox box newP
+    in case IM.lookup i conn of
       Just ps -> (sp1!i) {point = new ps}
       _       -> (sp1!i)
   in V.generate (V.length sp1) update
@@ -172,7 +175,7 @@ updateSP box tri sp0 sp1 damp time = let
 class (PointND a)=> Packer a where
   findPointConn :: IntMap (S2 a) -> IntMap IntSet
   keepInBox     :: Box a -> a -> a
-  
+
 instance Packer Point2D where
   findPointConn = let
     func acc x = let
@@ -181,7 +184,7 @@ instance Packer Point2D where
       in add a b $ add b c $ add c a $
          add b a $ add c b $ add a c acc
     in IM.foldl' func IM.empty
-     
+
   keepInBox Box2D{..} (Vec2 x y) = let
     forceInBox a minA maxA
       | a > maxA = maxA
@@ -202,7 +205,7 @@ instance Packer Point3D where
          add a d $ add b d $ add c d $
          add d a $ add d b $ add d c acc
     in IM.foldl' func IM.empty
-     
+
   keepInBox Box3D{..} (Vec3 x y z) = let
     forceInBox a minA maxA
       | a > maxA = maxA
@@ -231,7 +234,7 @@ icosahedron r pos = let
                         , (4, 2, 0), (5, 0, 2), (6, 1, 3), (7, 3, 1)
                         , (8, 6, 4), (9, 4, 6), (10, 5, 7), (11, 7, 5) ]
   in (V.map ((pos &+) . (r * k *&) . (\(x,y,z) -> Vec3 x y z)) points, tri)
-  
+
 writeWPointsVTKfile :: String -> SetPoint Point3D -> IO ()
 writeWPointsVTKfile file points = let
   vtks = V.imap foo points
@@ -240,4 +243,4 @@ writeWPointsVTKfile file points = let
     psU = V.convert ps
     ug  = mkUGVTK "WPoint" psU cs
     in addDataCells ug $ mkCellAttr "GrainID" (\_ _ _ -> nid)
-  in writeMultiVTKfile file vtks
+  in writeMultiVTKfile file True vtks

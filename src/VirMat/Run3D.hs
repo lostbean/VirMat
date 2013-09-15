@@ -50,10 +50,10 @@ runVirMat3D jobReq = do
       (wall, _) = runDelaunay3D box3D ps psID
       grains    = mkVoronoiMicro (onlySimplexInBox3D box3D wall)
 
-    return $ Simulation { box = box3D
-                        , pointSet = ps
+    return $ Simulation { box           = box3D
+                        , pointSet      = ps
                         , triangulation = wall
-                        , grainSet = grains }
+                        , grainSet      = grains }
 
 
 onlyDistInBox :: (PointND a)=> Box a -> SetPoint a -> SetPoint a
@@ -61,4 +61,3 @@ onlyDistInBox box sp = V.filter ((isInBox box).point) sp
 
 onlySimplexInBox3D :: Box Point3D -> IM.IntMap (S2 Point3D) -> IM.IntMap (S2 Point3D)
 onlySimplexInBox3D box ls = IM.filter ((isInBox box).circumSphereCenter) ls
-

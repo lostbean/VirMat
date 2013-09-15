@@ -48,8 +48,8 @@ composeDist [] = Nothing
 composeDist fs = let
   dist  = foldl' (\acc dist -> (\x -> acc x + (getDistFunc dist) x)) (\_ -> 0) fs
   modes = map getDistMode fs
-  area  = foldl' (\acc dist -> getDistArea dist + acc) 0 fs  
-  
+  area  = foldl' (\acc dist -> getDistArea dist + acc) 0 fs
+
   mean = let
     func (sa, ma) dist = let
       s = getDistArea dist
@@ -61,7 +61,7 @@ composeDist fs = let
     xs = concatMap (toList . getDistInterval) fs
     toList (a,b) = [a,b]
     in (minimum xs, maximum xs)
-  
+
   in return $ MultiDist
   { mDistFunc     = dist
   , mDistMean     = mean

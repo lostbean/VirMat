@@ -2,29 +2,34 @@
 
 module Main where
 
+import qualified Data.IntMap as IM
 import qualified Data.List   as L
 import qualified Data.Map    as M
-import qualified Data.IntMap as IM
 import qualified Data.Set    as S
 import qualified Data.Vector as V
 
-import           System.Environment (getArgs)
-  
+import           Hammer.Render.VTK.VTKRender (writeMultiVTKfile)
+import           System.Environment          (getArgs)
+
 import           Control.Applicative
 import           Data.Maybe
 import           Hammer.Math.Algebra
-import           Hammer.Math.SphereProjection
-import           SubZero.SubTwo
+import           Hammer.Texture.Bingham
+import           Hammer.Texture.Orientation
+import           Hammer.Texture.SphereProjection
+import           Hammer.Texture.Symmetry
+import           SubZero
 
-import           VirMat.IO.Import.CommandLineInput
 import           VirMat.Core.FlexMicro
+import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
+import           VirMat.Distributions.Texture.ODFSampling
+import           VirMat.IO.Export.SVG.RenderSVG
+import           VirMat.IO.Export.VTK.FlexMicro
+import           VirMat.IO.Import.CommandLineInput
+import           VirMat.IO.Import.Types
 import           VirMat.Run2D
 import           VirMat.Run3D
 import           VirMat.Types
-import           VirMat.IO.Import.Types
-import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
-import           VirMat.IO.Export.SVG.RenderSVG
-import           VirMat.IO.Export.VTK.FlexMicro
 
 import           Debug.Trace
 debug :: Show a => String -> a -> a
@@ -39,7 +44,7 @@ main = do
     Dimension2D -> go2D jobReq
     Dimension3D -> go3D jobReq
 
--- ============================== 3D ====================================== 
+-- ============================== 3D ======================================
 
 go3D :: JobRequest -> IO ()
 go3D jobReq = do
@@ -63,15 +68,25 @@ go3D jobReq = do
 --}
 
   rand <- randomSO3 jobReq 3000
-  renderSVGFile "pfRandStero.svg" (sizeSpec (Just 200, Nothing)) $ renderPoleFigureGB Sterographic rand
-  renderSVGFile "pfRandLambe.svg" (sizeSpec (Just 200, Nothing)) $ renderPoleFigureGB Lambert rand
+  let spec = getSizeSpec (Just 200, Nothing)
+  renderSVGFile "pfRandStero.svg" spec $ renderStereoPoleFigure  rand
+  renderSVGFile "pfRandLambe.svg" spec $ renderLambertPoleFigure rand
 
   print "Get Points..."
   --writeWPointsVTKfile "points.vtu" (pointSet simul)
-  
+
   print "Get Voronoi..."
-  writeFlexMicroVTK "voronoi.vtu"   0 fm
-  writeFlexMicroVTK "voronoi_1.vtu" 1 fm
+  writeMultiVTKfile "voronoi0.vtu" True $ renderFlexMicro [] 0 fm
+  writeMultiVTKfile "voronoi1.vtu" True $ renderFlexMicro [showGrainID] 1 fm
+
+  let
+    q1 = mkQuaternion $ Vec4 0 0 0 1
+    q2 = mkQuaternion $ Vec4 0 0 1 0
+    q3 = mkQuaternion $ Vec4 0 1 0 0
+    dist = mkBingham (1, q1) (1, q2) (1, q3)
+  fmTex <- addMicroFlexTexture dist fm
+
+  writeMultiVTKfile "voronoiTex1.vtu" True $ renderFlexMicro [showGrainID, showVTKIPF Cubic ND] 1 fmTex
 
   print "Get Stable Quadriple junctions..."
   -- writeFM "fmQuad.vtu" quadFM 2
@@ -82,7 +97,7 @@ go3D jobReq = do
   print "first angles"
   -- print $ listAngle quadFM
 
--- =========================== 2D ========================================== 
+-- ========================================== 2D =========================================
 
 go2D :: JobRequest -> IO ()
 go2D jobReq = do
@@ -93,13 +108,13 @@ go2D jobReq = do
 
 
 {--
--- ============================== Quadri Junction Force Simulation =====================================
+-- ======================== Quadri Junction Force Simulation =============================
 
 getNormalTri :: (Vec3, Vec3, Vec3) -> Vec3
 getNormalTri (a, b, c) = let
   ba = b &- a
   ca = c &- a
-  in normalize $ ba &^ ca 
+  in normalize $ ba &^ ca
 
 
 updateQuads fm = let
@@ -109,7 +124,7 @@ updateQuads fm = let
   func2 i old = old { controlPoint = controlPoint old &+ (0.3 *& (calcForceAtQuad $ getPatchsAtQuadrs ps fm i))}
   quadriP     = mapCP0D fm
   in IM.foldl' func fm quadriP
-  
+
 getPatchsAtQuadrs ps fm id = case IM.lookup id (controlPoints fm) of
   Nothing -> []
   Just cp -> let
