@@ -20,7 +20,7 @@ data JobRequest =
     , targetNumber ::Int
     , gsDist       ::[CombDist]
     , seed         ::RandomSeed
-    , outputFile   ::OutputFile 
+    , outputFile   ::OutputFile
     , showResults  ::ShowResults
     } deriving (Show)
 
@@ -33,20 +33,20 @@ data DistributionType =
     RandomDistribution
   | PackedDistribution
   deriving (Show, Eq)
-             
+
 data OutputFile =
     NoOutput
-  | OutputFile 
+  | OutputFile
     { outputFilePath ::FilePath
     , outputInfo     ::[OutputInfoType]
     } deriving (Show)
-                             
+
 data OutputInfoType =
     GrainVolume
-  | GrainArea  
-  | GrainNumber 
+  | GrainArea
+  | GrainNumber
   deriving (Show, Eq)
-                      
+
 data ShowResults =
     ShowAll [ShowType]
   | NoShow
@@ -55,7 +55,7 @@ data ShowResults =
 data ShowType =
     ShowVoronoiGrains
   | ShowBox
-  | ShowHull 
+  | ShowHull
   | ShowPoints
   | ShowSimplex
   deriving (Show, Eq)
@@ -91,7 +91,7 @@ instance Distribution LogNormal where
   distMode      = logNormalMode
   distFunc (LogNormal{..}) x = let
     mu     = log logNormalMode + sigma2
-    sigma2 = (2/3) * log (logNormalMean / logNormalMode) 
+    sigma2 = (2/3) * log (logNormalMean / logNormalMode)
     b      = (x * sigma2 * sqrt( 2 * pi))
     a      = exp (-1 * c)
     c      = ((log x - mu) ** 2) / (2 * sigma2 ** 2)
@@ -104,8 +104,8 @@ instance Distribution LogNormal where
     es     = exp sigma
     ess    = es * es * es
     in (emu * ess, emu / ess)
-    
-  
+
+
 instance Distribution Normal where
   distArea = normalScale
   distMean = normalMean
@@ -119,8 +119,8 @@ instance Distribution Normal where
   distInterval (Normal{..}) = let
     threeS = 3 * (sqrt normalVar)
     in (normalMean - threeS, normalMean + threeS)
-    
-       
+
+
 instance Distribution Uniform where
   distArea = uniformScale
   distMean = uniformMean
@@ -144,24 +144,24 @@ data LogNormal =
   , logNormalMode   :: Double
   , logNormalOffSet :: Double
   } deriving (Show)
-  
+
 data Normal =
   Normal
   { normalScale :: Double
   , normalMean  :: Double
   , normalVar   :: Double
   } deriving (Show)
-                                      
+
 data Uniform =
   Uniform
   { uniformScale :: Double
   , uniformMean  :: Double
   , uniformVar   :: Double
   } deriving (Show)
-   
+
 -- ====================== JSON FrontEnd ========================
-$(deriveToJSON id ''CombDist)
--- $(deriveFromJSON id ''CombDist)
+$(deriveToJSON defaultOptions ''CombDist)
+-- $(deriveFromJSON defaultOptions ''CombDist)
 instance FromJSON CombDist where
   parseJSON a@(Object v) = let
     ln = CombDist <$> (parseJSON a :: Parser LogNormal)
@@ -170,35 +170,35 @@ instance FromJSON CombDist where
     in (ln `mplus` n `mplus` u)
   parseJSON _          = mzero
 
-$(deriveToJSON id ''LogNormal)
-$(deriveFromJSON id ''LogNormal)
+$(deriveToJSON   defaultOptions ''LogNormal)
+$(deriveFromJSON defaultOptions ''LogNormal)
 
-$(deriveToJSON id ''Normal)
-$(deriveFromJSON id ''Normal)
+$(deriveToJSON   defaultOptions ''Normal)
+$(deriveFromJSON defaultOptions ''Normal)
 
-$(deriveToJSON id ''Uniform)
-$(deriveFromJSON id ''Uniform)
+$(deriveToJSON   defaultOptions ''Uniform)
+$(deriveFromJSON defaultOptions ''Uniform)
 
-$(deriveToJSON id ''RandomSeed)
-$(deriveFromJSON id ''RandomSeed)
+$(deriveToJSON   defaultOptions ''RandomSeed)
+$(deriveFromJSON defaultOptions ''RandomSeed)
 
-$(deriveToJSON id ''ShowType)
-$(deriveFromJSON id ''ShowType)
+$(deriveToJSON   defaultOptions ''ShowType)
+$(deriveFromJSON defaultOptions ''ShowType)
 
-$(deriveToJSON id ''ShowResults)
-$(deriveFromJSON id ''ShowResults)
+$(deriveToJSON   defaultOptions ''ShowResults)
+$(deriveFromJSON defaultOptions ''ShowResults)
 
-$(deriveToJSON id ''OutputInfoType)
-$(deriveFromJSON id ''OutputInfoType)
+$(deriveToJSON   defaultOptions ''OutputInfoType)
+$(deriveFromJSON defaultOptions ''OutputInfoType)
 
-$(deriveToJSON id ''OutputFile)
-$(deriveFromJSON id ''OutputFile)
+$(deriveToJSON   defaultOptions ''OutputFile)
+$(deriveFromJSON defaultOptions ''OutputFile)
 
-$(deriveToJSON id ''DistributionType)
-$(deriveFromJSON id ''DistributionType)
+$(deriveToJSON   defaultOptions ''DistributionType)
+$(deriveFromJSON defaultOptions ''DistributionType)
 
-$(deriveToJSON id ''Dimension)
-$(deriveFromJSON id ''Dimension)
+$(deriveToJSON   defaultOptions ''Dimension)
+$(deriveFromJSON defaultOptions ''Dimension)
 
-$(deriveToJSON id ''JobRequest)
-$(deriveFromJSON id ''JobRequest)
+$(deriveToJSON   defaultOptions ''JobRequest)
+$(deriveFromJSON defaultOptions ''JobRequest)
