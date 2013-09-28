@@ -1,11 +1,13 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards           #-}
 
 module VirMat.IO.Export.SVG.RenderSVG where
 
 import qualified Data.ByteString.Lazy     as BS
-import qualified Data.Vector              as Vec
+import qualified Data.Vector              as V
 import qualified Data.IntMap              as IM
+import qualified Data.HashSet             as HS
+import qualified Data.List                as L
 
 import           Text.Blaze.Svg.Renderer.Utf8 (renderSvg)
 import           Text.Blaze.Html              (Html, unsafeLazyByteString)
@@ -14,17 +16,25 @@ import           Data.IntMap                  (IntMap)
 
 import           DeUni.DeWall
 import           Diagrams.Backend.SVG
-import           Diagrams.Prelude hiding (width, height, interval)
+import           Diagrams.Prelude
+import           Data.Maybe
 import           Hammer.Texture.SphereProjection
 import           Hammer.Math.Algebra
+import           Hammer.MicroGraph
+import           Hammer.Math.SortSeq
 
+import           VirMat.Core.VoronoiMicro
+
+import Debug.Trace
+
+-- =======================================================================================
 
 getSizeSpec :: (Maybe Int, Maybe Int) -> SizeSpec2D
-getSizeSpec (width, height) = case (width, height) of
+getSizeSpec (wth, hht) = case (wth, hht) of
   (Nothing, Nothing) -> Absolute
-  (Just w, Nothing)  -> Width  (fromIntegral w)
-  (Nothing, Just h)  -> Height (fromIntegral h)
-  (Just w, Just h)   -> Dims   (fromIntegral w) (fromIntegral h)
+  (Just w , Nothing) -> Width  (fromIntegral w)
+  (Nothing, Just h ) -> Height (fromIntegral h)
+  (Just w , Just h ) -> Dims   (fromIntegral w) (fromIntegral h)
 
 renderSVGFile :: String -> SizeSpec2D -> Diagram SVG R2 -> IO ()
 renderSVGFile fileName spec dia = let
@@ -51,20 +61,56 @@ renderBox2D Box2D{..} = let
      # translate boxSize
      # lc blue
      # lw 0.05
-{--
-renderSetGrain2D :: [VoronoiFace Point2D] -> Diagram SVG R2
-renderSetGrain2D = L.foldl'(\acc x -> renderGrain2D x <> acc) mempty
 
-renderGrain2D :: VoronoiFace Point2D -> Diagram SVG R2
+-- =======================================================================================
+
+getGrainVertices :: VoronoiMicro Vec2 -> [MicroEdge] -> Maybe [Vec2]
+getGrainVertices micro mes = let
+  getVertex vid = getPropValue =<< getVertexProp vid micro
+  foo acc me = case me of
+    FullEdge a b -> (a, b):acc
+    _            -> acc
+  sorted :: Maybe [(VertexID, VertexID)]
+  -- TODO: Fix getListSegs, the first element isn't aligned
+  --sorted = getOneLoop $ getListSegs $ L.foldl' foo [] mes
+  sorted = closeSeq $ L.foldl' foo [] mes
+  in (mapM (getVertex . snd)) =<< (dbg $ sorted)
+
+instance SeqComp VertexID where
+  seqComp = (==)
+
+getGrainEdges :: VoronoiMicro Vec2 -> GrainID -> [MicroEdge]
+getGrainEdges micro grainID = let
+  getFaces gid      = HS.toList <$> (getPropConn =<< getGrainProp gid micro)
+  getEdges fid      = HS.toList <$> (getPropConn =<< getFaceProp  fid micro)
+  getEdgeValues eid = (getPropConn =<< getEdgeProp  eid micro)
+  in case getFaces grainID of
+    Nothing   -> []
+    Just fids -> let
+      eids = concat $ catMaybes (map getEdges fids)
+      in catMaybes (map getEdgeValues eids)
+
+dbg a = traceShow a a
+
+renderSetGrain2D :: VoronoiMicro Vec2 -> Diagram SVG R2
+renderSetGrain2D micro = let
+  gids = getGrainIDList micro
+  ps   = map (getGrainVertices micro . getGrainEdges micro) gids
+  addGrain acc x = renderGrain2D x <> acc
+  in L.foldl' addGrain mempty (catMaybes ps)
+
+renderGrain2D :: [Vec2] -> Diagram SVG R2
 renderGrain2D grain = let
-  delta = v2r . circleCenter . snd . head . edges
-  func  = fromVertices . map (v2p . circleCenter . snd) . (\x -> x ++ [head x]) . edges
+  fstp  = head grain
+  delta = v2r . head
+  func  = fromVertices . map v2p . (++ [fstp])
   in strokeT (func grain)
      # fcA (yellow `withOpacity` 0.15)
      # lw 0.1
      # lc orange
      # translate (delta grain)
- --}
+
+-- =======================================================================================
 
 renderSetS2 :: Vector (WPoint Point2D) -> IntMap (S2 Point2D) -> Diagram SVG R2
 renderSetS2 ps ss = let
@@ -103,7 +149,7 @@ renderTri a b c = let
 renderSetPoint2D :: Vector (WPoint Point2D) -> Diagram SVG R2
 renderSetPoint2D ps = let
   rc x = renderCircle (point x) (DeUni.DeWall.radius x) (red `withOpacity` 0.10)
-  in Vec.foldl' (\acc x -> acc <> rc x) mempty ps
+  in V.foldl' (\acc x -> acc <> rc x) mempty ps
 
 v2r :: Vec2 -> R2
 v2r (Vec2 x y) = r2 (x,y)
@@ -113,19 +159,19 @@ v2p (Vec2 x y) = p2 (x,y)
 
 renderDiffArr :: Vector (WPoint Point2D) ->  Vector (WPoint Point2D) -> Diagram SVG R2
 renderDiffArr arr0 arr1 = let
-  ds = Vec.zip arr0 arr1
-  in Vec.foldl (\acc (a,b) -> acc <> renderVector red (point a, point b)) mempty ds
+  ds = V.zip arr0 arr1
+  in V.foldl (\acc (a,b) -> acc <> renderVector red (point a, point b)) mempty ds
 
 renderForces :: Vector (WPoint Point2D) -> Vector (Vector Point2D) -> Diagram SVG R2
 renderForces arr forces = let
-  ds = Vec.zip arr forces
-  func x fs = Vec.foldl (\acc f -> acc <> renderVector green (point x, point x &+ f)) mempty fs
-  in Vec.foldl (\acc (x, fs) -> acc <> func x fs) mempty ds
+  ds = V.zip arr forces
+  func x fs = V.foldl (\acc f -> acc <> renderVector green (point x, point x &+ f)) mempty fs
+  in V.foldl (\acc (x, fs) -> acc <> func x fs) mempty ds
 
 renderDisp :: Vector (WPoint Point2D) -> Vector Point2D -> Diagram SVG R2
 renderDisp arr disp = let
-  ds = Vec.zip arr disp
-  in Vec.foldl (\acc (x, v) -> acc <> renderVector red (point x, point x &+ v)) mempty ds
+  ds = V.zip arr disp
+  in V.foldl (\acc (x, v) -> acc <> renderVector red (point x, point x &+ v)) mempty ds
 
 renderVector :: Colour Double -> (Point2D, Point2D) -> Diagram SVG R2
 renderVector color (a,b) = let
@@ -173,13 +219,13 @@ renderProjPoint p = circle (0.01)
 
 renderStereoPoleFigure :: Vector Normal3 -> Diagram SVG R2
 renderStereoPoleFigure = let
-  foo = Vec.foldl' (\acc n -> acc <> renderProjPoint n) mempty
-  in (renderSO3ProjGrid <>) . foo . getBothProj . Vec.map steroSO3Proj
+  foo = V.foldl' (\acc n -> acc <> renderProjPoint n) mempty
+  in (renderSO3ProjGrid <>) . foo . getBothProj . V.map steroSO3Proj
 
 renderLambertPoleFigure :: Vector Normal3 -> Diagram SVG R2
 renderLambertPoleFigure = let
-  foo = Vec.foldl' (\acc n -> acc <> renderProjPoint n) mempty
-  in (renderSO3ProjGrid <>) . foo . getBothProj . Vec.map lambertSO3Proj
+  foo = V.foldl' (\acc n -> acc <> renderProjPoint n) mempty
+  in (renderSO3ProjGrid <>) . foo . getBothProj . V.map lambertSO3Proj
 
 -- ============================== Histogram  ============================
 

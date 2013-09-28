@@ -102,8 +102,7 @@ go3D jobReq = do
 go2D :: JobRequest -> IO ()
 go2D jobReq = do
   simul <- runVirMat2D jobReq
-  print "Fix SVG render."
-  --printMicro "Final" simul
+  printMicro "Final" simul
 
 
 

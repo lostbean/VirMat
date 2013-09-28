@@ -16,8 +16,8 @@ import           Data.IntMap   (IntMap)
 import           Hammer.Math.Algebra
 import           Hammer.MicroGraph
 
-import           DeUni.Dim3.Base3D
-import           DeUni.Dim2.Base2D ()
+import           DeUni.Dim3.Base3D (tetraPoints)
+import           DeUni.Dim2.Base2D (face2DPoints)
 import           DeUni.Types
 
 --import Debug.Trace (trace)
@@ -65,15 +65,15 @@ addS2 s2 = let
 
 -- =======================================================================================
 
+
 mkVoronoiMicro2D :: IntMap (S2 Vec2) -> VoronoiMicro Vec2
 mkVoronoiMicro2D = IM.foldl' (flip addS22D) initMicroGraph
 
 addS22D :: S2 Vec2 -> VoronoiMicro Vec2 -> VoronoiMicro Vec2
 addS22D s2 = let
-  d = -1
-  (a,b,c) = undefined --ddPoints s2
-  tetra = (a, b, c, d)
-  vid = mkVertexID tetra
+  (a, b, c) = face2DPoints s2
+  d   = -1
+  vid = mkVertexID (a,b,c,d)
   v   = circumOrigin s2
   fab = mkFaceID (a, b)
   fbc = mkFaceID (b, c)
@@ -85,21 +85,15 @@ addS22D s2 = let
   ea = mkEdgeID' (fbc, fbd, fcd)
   eb = mkEdgeID' (fca, fad, fcd)
   ec = mkEdgeID' (fab, fad, fbd)
-  ed = mkEdgeID' (fab, fbc, fca)
 
-  addV = insertNewVertex vid v [ea, eb, ec, ed]
+  addV = insertNewVertex vid v [ea, eb, ec]
 
   addEa = insertEdgeConn ea [fbc, fbd, fcd]
   addEb = insertEdgeConn eb [fca, fad, fcd]
   addEc = insertEdgeConn ec [fab, fad, fbd]
-  addEd = insertEdgeConn ed [fab, fbc, fca]
 
   addFab = insertFaceConn fab
   addFbc = insertFaceConn fbc
   addFca = insertFaceConn fca
-  addFad = insertFaceConn fad
-  addFbd = insertFaceConn fbd
-  addFcd = insertFaceConn fcd
 
-  in addV . addEa . addEb . addEc . addEd .
-     addFab . addFbc . addFca . addFad . addFbd . addFcd
+  in addV . addEa . addEb . addEc . addFab . addFbc . addFca

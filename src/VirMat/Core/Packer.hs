@@ -6,6 +6,8 @@
 module VirMat.Core.Packer
        ( runPacker
        , runPacker2D
+       , setForce
+       , setDisp
        ) where
 
 import qualified Data.IntMap as IM
