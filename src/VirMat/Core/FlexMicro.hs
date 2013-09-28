@@ -115,17 +115,13 @@ faceCenter ps vs
     sumFecth   = V.foldl' (\acc i -> acc &+ (ps V.! i)) zero
     (total, n) = V.foldl' sumBoth (zero, 0) vs
 
-sortEdges :: (SeqSeg a, SeqInv a)=> Vector a -> Maybe (Vector a)
-sortEdges vec = case getVecSegs vec of
-  [LoopSeq     c] -> return c
-  _               -> Nothing
+sortEdges :: (SeqSeg a)=> Vector a -> Maybe (Vector a)
+sortEdges = getOneLoop . sortSegs
 
 instance SeqComp Int
 
 instance (SeqComp a)=> SeqSeg (Vector a) where
   type SeqUnit (Vector a) = a
-  seqHead = V.head
-  seqTail = V.last
-
-instance SeqInv (Vector a) where
-  seqInv = V.reverse
+  getSeqHead = V.head
+  getSeqTail = V.last
+  seqInv     = V.reverse

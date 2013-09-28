@@ -70,11 +70,9 @@ getGrainVertices micro mes = let
   foo acc me = case me of
     FullEdge a b -> (a, b):acc
     _            -> acc
-  sorted :: Maybe [(VertexID, VertexID)]
-  -- TODO: Fix getListSegs, the first element isn't aligned
-  --sorted = getOneLoop $ getListSegs $ L.foldl' foo [] mes
-  sorted = closeSeq $ L.foldl' foo [] mes
-  in (mapM (getVertex . snd)) =<< (dbg $ sorted)
+  sorted :: Maybe (Vector (VertexID, VertexID))
+  sorted = getOneLoop $ sortSegs $ V.fromList $ L.foldl' foo [] mes
+  in (mapM (getVertex . snd)) =<< (V.toList <$> sorted)
 
 instance SeqComp VertexID where
   seqComp = (==)
@@ -89,8 +87,6 @@ getGrainEdges micro grainID = let
     Just fids -> let
       eids = concat $ catMaybes (map getEdges fids)
       in catMaybes (map getEdgeValues eids)
-
-dbg a = traceShow a a
 
 renderSetGrain2D :: VoronoiMicro Vec2 -> Diagram SVG R2
 renderSetGrain2D micro = let
