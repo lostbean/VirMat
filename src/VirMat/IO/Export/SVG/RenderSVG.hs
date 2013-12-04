@@ -38,12 +38,12 @@ getSizeSpec (wth, hht) = case (wth, hht) of
 
 renderSVGFile :: String -> SizeSpec2D -> Diagram SVG R2 -> IO ()
 renderSVGFile fileName spec dia = let
-  build = renderDia SVG (SVGOptions spec) dia
+  build = renderDia SVG (SVGOptions spec Nothing) dia
   in BS.writeFile fileName (renderSvg build)
 
 renderSVGHtml :: SizeSpec2D -> Diagram SVG R2 -> Html
 renderSVGHtml spec dia = let
-  build = renderDia SVG (SVGOptions spec) dia
+  build = renderDia SVG (SVGOptions spec Nothing) dia
   in unsafeLazyByteString (renderSvg build)
 
 closeUpOnBox :: Box Point2D -> Diagram SVG R2 -> Diagram SVG R2
