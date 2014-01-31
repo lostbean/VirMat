@@ -18,7 +18,7 @@ import           DeUni.DeWall
 import           Diagrams.Backend.SVG
 import           Diagrams.Prelude
 import           Data.Maybe
-import           Hammer.Texture.SphereProjection
+import           Texture.SphereProjection
 import           Hammer.Math.Algebra
 import           Hammer.MicroGraph
 import           Hammer.Math.SortSeq

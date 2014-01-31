@@ -11,10 +11,10 @@ import qualified Data.HashMap.Strict as HM
 import           Control.Applicative ((<$>))
 
 import           Hammer.MicroGraph
-import           Hammer.Texture.Bingham
-import           Hammer.Texture.IPF
-import           Hammer.Texture.Orientation
-import           Hammer.Texture.Symmetry
+import           Texture.Bingham
+import           Texture.IPF
+import           Texture.Orientation
+import           Texture.Symmetry
 
 import           VirMat.Core.FlexMicro
 import           VirMat.IO.Export.VTK.FlexMicro

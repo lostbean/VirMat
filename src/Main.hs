@@ -14,10 +14,10 @@ import           System.Environment          (getArgs)
 import           Control.Applicative
 import           Data.Maybe
 import           Hammer.Math.Algebra
-import           Hammer.Texture.Bingham
-import           Hammer.Texture.Orientation
-import           Hammer.Texture.SphereProjection
-import           Hammer.Texture.Symmetry
+import           Texture.Bingham
+import           Texture.Orientation
+import           Texture.SphereProjection
+import           Texture.Symmetry
 import           SubZero
 
 import           VirMat.Core.FlexMicro

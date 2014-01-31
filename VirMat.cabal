@@ -1,13 +1,13 @@
 Name:                VirMat
-Version:             0.4
+Version:             0.4.1
 License:             GPL-3
 License-file:        LICENSE
 Author:              Edgar Gomes de Araujo
 Maintainer:          Edgar Gomes de Araujo <talktoedgar@gmail.com>
-Homepage:            
+Homepage:
 Stability:           Experimental
 Synopsis:            3D Microstructure Generator
-Description:         
+Description:
     Creates virtual microstructure in 3 dimesions.
 Cabal-version:       >= 1.8
 Build-type:          Simple
@@ -29,14 +29,15 @@ Executable virmatgen
 
     Build-Depends:      VirMat
                       , base                   == 4.*
-                      , hammer                 == 0.2.*
-                      , DeUni                  == 0.3.*
+                      , hammer                 >= 0.3
+                      , sledge                 >= 0.3
+                      , DeUni                  >= 0.3
                       , containers             >= 0.5
                       , unordered-containers   >= 0.2
                       , vector                 >= 0.10
                       , SubZero                >= 0.1
                       , aeson                  >= 0.6
-                      , diagrams-lib           >= 0.5 
+                      , diagrams-lib           >= 0.5
                       , diagrams-svg           >= 0.4
                       , colour                 >= 2.0
                       , blaze-html             >= 0.6
@@ -61,14 +62,15 @@ library
                  -O2
     hs-source-dirs:     src
     Build-Depends:      base                   == 4.*
-                      , hammer                 == 0.2.*
-                      , DeUni                  == 0.3.*
+                      , hammer                 >= 0.3
+                      , sledge                 >= 0.3
+                      , DeUni                  >= 0.3
                       , containers             >= 0.5
                       , unordered-containers   >= 0.2
                       , vector                 >= 0.10
                       , SubZero                >= 0.1
                       , aeson                  >= 0.6
-                      , diagrams-lib           >= 0.5  
+                      , diagrams-lib           >= 0.5
                       , diagrams-svg           >= 0.4
                       , colour                 >= 2.0
                       , blaze-html             >= 0.6
@@ -90,7 +92,7 @@ library
                         VirMat.Core.Sampling
                         VirMat.Core.VoronoiMicro
                         VirMat.Core.FlexMicro
-                        
+
                         VirMat.Distributions.GrainSize.StatTools
                         VirMat.Distributions.GrainSize.GrainDistributionGenerator
                         VirMat.Distributions.GrainSize.GrainQuery
@@ -102,9 +104,3 @@ library
                         VirMat.IO.Export.SVG.RenderSVG
 
                         VirMat.IO.Import.Types
-
-
-
-
-
-
