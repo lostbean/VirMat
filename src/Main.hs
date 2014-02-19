@@ -2,30 +2,19 @@
 
 module Main where
 
-import qualified Data.IntMap as IM
-import qualified Data.List   as L
-import qualified Data.Map    as M
-import qualified Data.Set    as S
-import qualified Data.Vector as V
-
 import           Hammer.Render.VTK.VTKRender (writeMultiVTKfile)
-import           System.Environment          (getArgs)
 
-import           Control.Applicative
-import           Data.Maybe
 import           Hammer.Math.Algebra
 import           Texture.Bingham
 import           Texture.Orientation
-import           Texture.SphereProjection
 import           Texture.Symmetry
-import           SubZero
 
 import           VirMat.Core.FlexMicro
 import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
 import           VirMat.Distributions.Texture.ODFSampling
 import           VirMat.IO.Export.SVG.RenderSVG
 import           VirMat.IO.Export.VTK.FlexMicro
-import           VirMat.IO.Import.CommandLineInput
+import           VirMat.IO.Import.CommandLine
 import           VirMat.IO.Import.Types
 import           VirMat.Run2D
 import           VirMat.Run3D
@@ -37,9 +26,7 @@ debug s x = trace (s ++ show x) x
 
 main :: IO ()
 main = do
-  putStrLn ("VirMat v0.3 04/2012 [by Edgar Gomes]")
-  putStrLn  "____________________________________"
-  jobReq <- getArgs >>= (return.parseArgs)
+  jobReq <- getJob
   case dimension jobReq of
     Dimension2D -> go2D jobReq
     Dimension3D -> go3D jobReq

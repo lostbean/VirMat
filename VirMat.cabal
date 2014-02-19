@@ -49,7 +49,7 @@ Executable virmatgen
                       , random-fu              >= 0.2
                       , transformers           >= 0.3
                       , mtl                    >= 2.0
-                      , parsec                 >= 3.0
+                      , optparse-applicative   >= 0.7
     if flag(generator)
       Buildable:        True
     else
@@ -82,7 +82,6 @@ library
                       , random-fu              >= 0.2
                       , transformers           >= 0.3
                       , mtl                    >= 2.0
-                      , parsec                 >= 3.0
 
     Exposed-modules:    VirMat.Run2D
                         VirMat.Run3D

@@ -27,14 +27,14 @@ import           DeUni.DeWall
 runVirMat3D :: JobRequest -> IO (Simulation Point3D)
 runVirMat3D jobReq = do
     (DistributedPoints box3D ps) <- case distrType jobReq of
-        RandomDistribution -> genFullRandomGrainDistribution (1, 1, 1) jobReq
-        PackedDistribution ->  do
+        RandomDistribution       -> genFullRandomGrainDistribution (1, 1, 1) jobReq
+        PackedDistribution nstep ->  do
           (DistributedPoints box3D ps0) <- genFullRandomGrainDistribution (1, 1, 1) jobReq
           let
             len0         = V.length ps0
             psID0        = [0..len0-1]
             (wall0, _)   = runDelaunay3D box3D ps0 psID0
-            (psFinal, _) = runPacker 60 box3D ps0 wall0
+            (psFinal, _) = runPacker nstep box3D ps0 wall0
           return $ DistributedPoints box3D psFinal
     -- === DEBUG ====
     let Just mdist = composeDist . gsDist $ jobReq
