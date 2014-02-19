@@ -8,7 +8,6 @@ import           VirMat.Core.VoronoiMicro
 import           VirMat.Core.Packer
 import           VirMat.Distributions.GrainSize.StatTools
 import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
-import           VirMat.Distributions.GrainSize.GrainQuery
 import           VirMat.IO.Import.Types
 import           VirMat.IO.Export.Types
 import           VirMat.IO.Export.SVG.RenderSVG
@@ -17,7 +16,6 @@ import qualified Data.Vector as V
 import qualified Data.IntMap as IM
 
 import           Data.Monoid        ((<>))
-import           Diagrams.Prelude   ((===), (|||))
 import           Text.Blaze.Html    (Html)
 
 import           Hammer.Math.Algebra
@@ -140,8 +138,8 @@ printEvo nid box sp wall grains = let
      (diaUP1 ||| diaUP2)
 --}
 
-printMicro :: String -> Simulation Vec2 -> IO ()
-printMicro name Simulation{..} = let
+printMicro :: Output -> Simulation Vec2 -> IO ()
+printMicro out Simulation{..} = let
   forces = setForce triangulation pointSet
   disp   = setDisp triangulation pointSet
 
@@ -160,7 +158,14 @@ printMicro name Simulation{..} = let
            renderBox2D box
         <> renderSetGrain2D grainSet
 
-  in renderSVGFile
-     ("microstructure_" ++ name ++ ".svg")
-     (getSizeSpec (Just renderSizeX, Just renderSizeY)) $
-     diaUP1 === diaUP2 === diaUP3
+  func what name
+    | what `elem` (outputWhat out) = render
+    | otherwise                    = const (return ())
+    where
+      file   = getOutputFilePath out name "svg"
+      render = renderSVGFile file (getSizeSpec (Just renderSizeX, Just renderSizeY))
+
+  in do
+     func ShowPoints  "points"  diaUP1
+     func ShowForces  "forces"  diaUP2
+     func ShowVoronoi "voronoi" diaUP3

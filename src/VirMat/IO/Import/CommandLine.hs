@@ -2,11 +2,13 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module VirMat.IO.Import.CommandLine
-       (getJob) where
+       ( getJob
+       ) where
 
 import Options.Applicative
 
 import VirMat.IO.Import.Types
+
 
 parseJob :: Parser JobRequest
 parseJob = VoronoiJob
@@ -16,7 +18,6 @@ parseJob = VoronoiJob
   <*> parseDistribution
   <*> parseSeed
   <*> parseOutFile
-  <*> parseShow
 
 getJob :: IO JobRequest
 getJob = execParser opts
@@ -87,17 +88,26 @@ parseSeed = let
                           help    "Random seed." )
   in maybe NoSeed Seed <$> p
 
-parseOutFile :: Parser FilePath
-parseOutFile =
-  strOption
-  (  long    "output"      <>
-     short   'o'           <>
-     metavar "FILEPATH"    <>
-     help    "Output file." )
+parseOutFile :: Parser Output
+parseOutFile = Output
+  <$> strOption
+      (  long    "dir"      <>
+         short   'd'           <>
+         metavar "FILEPATH"    <>
+         help    "Output directory." )
+  <*> strOption
+      (  long    "sample"      <>
+         short   's'           <>
+         metavar "STR"    <>
+         help    "Sample name." )
+  <*> parseShow
 
 parseShow :: Parser [ShowType]
 parseShow = let
-  v = flag' ShowVoronoiGrains (long "showvoronoi" <> help "Show Voronoi grains.")
-  b = flag' ShowBox           (long "showbox"     <> help "Show enclosing box.")
-  h = flag' ShowHull          (long "showhull"    <> help "Show convex hull.")
-  in many (v <|> b <|> h)
+  v = flag' ShowVoronoi (long "showvoronoi" <> help "Show Voronoi grains.")
+  b = flag' ShowBox     (long "showbox"     <> help "Show enclosing box.")
+  h = flag' ShowHull    (long "showhull"    <> help "Show convex hull.")
+  p = flag' ShowPoints  (long "showpoints"  <> help "Show weighted points.")
+  s = flag' ShowSimplex (long "showsimplex" <> help "Show Delaunay Triangulation.")
+  f = flag' ShowForces  (long "showforces"  <> help "Show forces in packing.")
+  in many (v <|> b <|> h <|> p <|> s <|> f)

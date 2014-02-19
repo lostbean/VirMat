@@ -89,7 +89,7 @@ go3D jobReq = do
 go2D :: JobRequest -> IO ()
 go2D jobReq = do
   simul <- runVirMat2D jobReq
-  printMicro "Final" simul
+  printMicro (output jobReq) simul
 
 
 

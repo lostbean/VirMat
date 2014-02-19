@@ -23,8 +23,7 @@ data JobRequest =
     , targetNumber :: Int
     , gsDist       :: [CombDist]
     , seed         :: RandomSeed
-    , outputFile   :: FilePath
-    , showResults  :: [ShowType]
+    , output       :: Output
     } deriving (Show)
 
 data Dimension =
@@ -37,12 +36,20 @@ data DistributionType =
   | PackedDistribution Int
   deriving (Show, Eq)
 
+data Output =
+  Output
+  { outputDir  :: FilePath
+  , sampleName :: String
+  , outputWhat :: [ShowType]
+  } deriving (Show)
+
 data ShowType =
-    ShowVoronoiGrains
+    ShowVoronoi
   | ShowBox
   | ShowHull
   | ShowPoints
   | ShowSimplex
+  | ShowForces
   deriving (Show, Eq)
 
 data RandomSeed =
@@ -150,7 +157,14 @@ instance Distribution Uniform where
     a = sqrt (3 * uniformVar)
     in (uniformMean - a, uniformMean + a)
 
--- ====================== JSON FrontEnd ========================
+-- ================================= Output Functions ====================================
+
+getOutputFilePath :: Output -> String -> String -> FilePath
+getOutputFilePath Output{..} extra ext = path
+  where path = outputDir ++ "/" ++ sampleName ++ "-" ++ extra ++ "." ++ ext
+
+-- ================================== JSON FrontEnd ======================================
+
 $(deriveToJSON defaultOptions ''CombDist)
 -- $(deriveFromJSON defaultOptions ''CombDist)
 instance FromJSON CombDist where
@@ -185,6 +199,9 @@ $(deriveFromJSON defaultOptions ''DistributionType)
 
 $(deriveToJSON   defaultOptions ''Dimension)
 $(deriveFromJSON defaultOptions ''Dimension)
+
+$(deriveToJSON   defaultOptions ''Output)
+$(deriveFromJSON defaultOptions ''Output)
 
 $(deriveToJSON   defaultOptions ''JobRequest)
 $(deriveFromJSON defaultOptions ''JobRequest)
