@@ -21,7 +21,7 @@ import           Data.IntSet (IntSet)
 
 import           DeUni.DeWall
 import           Hammer.Math.Algebra
-import           Hammer.Render.VTK.VTKRender
+import           Hammer.VTK
 
 import           Debug.Trace (trace)
 import           System.IO.Unsafe

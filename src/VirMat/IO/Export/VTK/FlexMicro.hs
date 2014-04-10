@@ -17,7 +17,7 @@ import           Data.Vector         (Vector)
 
 import           Hammer.Math.Algebra
 import           Hammer.MicroGraph
-import           Hammer.Render.VTK.VTKRender
+import           Hammer.VTK
 import           SubZero
 
 import           VirMat.Core.FlexMicro

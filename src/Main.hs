@@ -2,7 +2,7 @@
 
 module Main where
 
-import           Hammer.Render.VTK.VTKRender (writeMultiVTKfile)
+import           Hammer.VTK (writeMultiVTKfile)
 
 import           Hammer.Math.Algebra
 import           Texture.Bingham
