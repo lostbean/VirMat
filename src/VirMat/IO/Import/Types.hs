@@ -81,6 +81,13 @@ data Uniform =
   , uniformVar   :: Double
   } deriving (Show)
 
+data CustomDist =
+  CustomDist
+  { customDist      :: Vector Double
+  , customBinSize   :: Vector Double
+  , customBinCenter :: Vector Double
+  } deriving (Show)
+
 data CombDist = forall a . Distribution a =>  CombDist a
 
 instance Show CombDist where
@@ -156,6 +163,30 @@ instance Distribution Uniform where
   distInterval (Uniform{..}) = let
     a = sqrt (3 * uniformVar)
     in (uniformMean - a, uniformMean + a)
+
+instance Distribution CustomDist where
+  distArea CustomDist{..} = V.sum $ V.zipWith (*) customDist customBinSize
+  distMean CustomDist{..} = let
+    a = V.sum $ V.zipWith (*) customDist customBinCenter
+    b = V.sum customDist
+    in a / b
+  distMode CustomDist{..} = let
+    i = V.maxIndex customDist
+    in customBinCenter V.! i
+  distFunc (CustomDist{..}) x = let
+    r = V.findIndex (x <) customBinCenter
+    func i
+      | i < 1       = i
+      | x >= middle = i
+      | otherwise   = i - 1
+      where middle = 0.5 * ((customBinCenter V.! i) + (customBinSize V.! (i-1)))
+    in maybe 0 ((customDist V.!) . func) r
+  distInterval (CustomDist{..}) = let
+    ip = V.head customBinCenter
+    is = V.head customBinSize
+    fp = V.last customBinCenter
+    fs = V.last customBinSize
+    in (ip - is/2, fp + fs/2)
 
 -- ================================= Output Functions ====================================
 
