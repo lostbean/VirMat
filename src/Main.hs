@@ -89,6 +89,8 @@ go3D jobReq = do
 go2D :: JobRequest -> IO ()
 go2D jobReq = do
   simul <- runVirMat2D jobReq
+  print $ pointSet simul
+  print $ VirMat.Types.box simul
   printMicro (output jobReq) simul
 
 
