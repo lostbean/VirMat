@@ -32,7 +32,7 @@ addGrainAttrs :: (RenderElemVTK a)=> GrainID -> FlexMicro g
               -> [RenderGrainProp g] -> VTK a -> VTK a
 addGrainAttrs gid fm renders vtk = let
   foo (RenderGrainProp (name, func)) = let
-    add x v = addDataCells v (mkCellAttr name (\_ _ _ -> x))
+    add x v = addCellAttr v (mkCellAttr name (\_ _ _ -> x))
     in maybe id add (func gid fm)
   in L.foldl' (\acc x -> foo x acc) vtk renders
 
@@ -59,7 +59,7 @@ renderFace fid n FlexMicro{..} = let
     sbN = subdivideN n sb
     ps  = V.convert $ subTwoPoints sbN
     ts  = getSubTwoFaces $ subTwoMesh sbN
-    in mkUGVTK "FlexMicro" ps ts
+    in mkUGVTK "FlexMicro" ps ts [] []
   in func <$> (getPropValue =<< getFaceProp fid flexGraph)
 
 -- | Show the 'GrainID' value in the 'VTK' data.

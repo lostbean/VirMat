@@ -14,15 +14,19 @@ module VirMat.Distributions.GrainSize.GrainQuery
   , Volume (getVolume)
   , Area   (getArea)
   , Length (getLength)
+  , getFaceAreaFracHist
   ) where
 
-import qualified Data.Vector as V
-  
-import           Data.Vector   (Vector) 
+import qualified Data.Vector  as V
+import qualified Data.HashSet as HS
+
+import           Data.Vector   (Vector)
+import           Data.HashSet  (HashSet)
 import           Data.List     (foldl')
 
 import           DeUni.Types
 import           Hammer.Math.Algebra
+import           Hammer.MicroGraph
 
 import           VirMat.Core.VoronoiMicro
 
@@ -34,12 +38,31 @@ newtype Length = Length
 newtype Area = Area
   { getArea :: Double
   } deriving (Eq, Ord, Num, Fractional, Show)
-                            
+
 newtype Volume = Volume
   { getVolume :: Double
   } deriving (Eq, Ord, Num, Fractional, Show)
 
+-- TODO change better name or create a class
+getFaceAreaFracHist :: VoronoiMicro a -> [Double]
+getFaceAreaFracHist = map getArea . getFaceAreas
 
+getFaceAreas m = let
+  gs = getGrainIDList m
+  as = map (V.fromList . getVoronoiVertex m . getVoronoiEdges m)
+  in undefined
+
+getVoronoiEdges :: VoronoiMicro v -> GrainID -> HashSet EdgeID
+getVoronoiEdges m gid = let
+  func = HS.foldl' (\es f -> maybe es (HS.union es) (getFaceProp f m >>= getPropConn)) HS.empty
+  in maybe HS.empty func (getGrainProp gid m >>= getPropConn)
+
+getVoronoiVertex :: VoronoiMicro v -> HashSet EdgeID -> [v]
+getVoronoiVertex m es = let
+  vs = HS.foldl' (\vs e -> maybe vs (HS.union vs . func) (getEdgeProp e m >>= getPropConn)) HS.empty es
+  func (FullEdge v1 v2) = HS.fromList [v1, v2]
+  func _                = HS.empty
+  in HS.foldl' (\xs v -> maybe xs (:xs) (getVertexProp v m >>= getPropValue)) [] vs
 
 getGrainVolume :: (AbelianGroup a, MultiVec a, DotProd a, CrossProd a)
                => Vector (Vector a) -> (Volume, a)
@@ -53,8 +76,8 @@ getGrainVolume grain = let
     normal    = getNormalToFace grainCenter f
     in (normal &. fcenter) * (getArea area)
   in  (Volume $ abs (volume / 3), grainCenter)
-      
-     
+
+
 triangleNormal :: (AbelianGroup a, DotProd a, CrossProd a, MultiVec a)=> a -> a -> a -> a
 triangleNormal a b c = let
   ca = a &- c
@@ -67,14 +90,14 @@ triangleArea a b c = let
   cb = b &- c
   dot = ca &. cb
   x   = normsqr cb * normsqr ca - dot * dot
-  in Area (0.5 * sqrt x) 
-     
+  in Area (0.5 * sqrt x)
+
 triangleVolume :: (AbelianGroup a, DotProd a, CrossProd a)=> a -> a -> a -> Area
 triangleVolume a b c = Area $ (a &. (b &^ c)) / 6
 
 -- | Calculate the area of each face using a signed sum of triangles.
 -- It assumes that the edge pairs are given in a sorted sequnce,
--- e.g. (P0,P1,P2 .... Pn) 
+-- e.g. (P0,P1,P2 .... Pn)
 getVoronoiFaceArea :: (AbelianGroup a, DotProd a, MultiVec a)
                    => Vector a -> (Area, a)
 getVoronoiFaceArea face = let
@@ -85,7 +108,7 @@ getVoronoiFaceArea face = let
     | otherwise = let
       a = face V.! n
       b = face V.! (n + 1)
-      in sumTri (n + 1) + triangleArea a b center 
+      in sumTri (n + 1) + triangleArea a b center
   in (sumTri 1, center)
 
 getNormalToFace :: (AbelianGroup a, CrossProd a, DotProd a, MultiVec a)
@@ -117,5 +140,3 @@ getStdDeviation gs = totDev / n
     totDev = foldl' (\acc x -> acc + (avg - x) * (avg - x)) 0 gs
     avg    = getAverage gs
     n      = fromIntegral $ length gs
-
-

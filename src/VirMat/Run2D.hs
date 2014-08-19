@@ -7,6 +7,7 @@ import           VirMat.Types
 import           VirMat.Core.VoronoiMicro
 import           VirMat.Core.Packer
 import           VirMat.Distributions.GrainSize.StatTools
+import           VirMat.Distributions.GrainSize.GrainQuery
 import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
 import           VirMat.IO.Import.Types
 import           VirMat.IO.Export.Types
@@ -106,8 +107,8 @@ renderTriangulation Simulation{..} = let
 
 -- ================== render to JSON ========================
 
---getGrainSizeHist :: Simulation Point2D -> Histogram
---getGrainSizeHist Simulation{..} = autoHist (getFaceAreaFracHist grainSet)
+getGrainSizeHist :: Simulation Point2D -> Histogram
+getGrainSizeHist Simulation{..} = autoHist (getFaceAreaFracHist grainSet)
 
 getTargetGrainSizeHist :: Simulation a -> Histogram
 getTargetGrainSizeHist Simulation{..} = autoHist (map ((* pi).weight) $ V.toList pointSet)

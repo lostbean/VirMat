@@ -60,7 +60,7 @@ renderBox2D Box2D{..} = let
   in rect dx dy
      # translate boxSize
      # lc blue
-     # lw 0.05
+     # lw veryThin
 
 -- =======================================================================================
 
@@ -102,7 +102,7 @@ renderGrain2D grain = let
   func  = fromVertices . map v2p . (++ [fstp])
   in strokeT (func grain)
      # fcA (yellow `withOpacity` 0.15)
-     # lw 0.1
+     # lw thin
      # lc orange
      # translate (delta grain)
 
@@ -138,7 +138,7 @@ renderTri a b c = let
   tri = ab <> bc <> ca
   in strokeT tri
      # fcA (yellow `withOpacity` 0.30)
-     # lw 0.1
+     # lw thin
      # lc orange
      # translate (v2r a)
 
@@ -175,7 +175,7 @@ renderVector color (a,b) = let
   ab   = func a ~~ func b
   in strokeT ab
    # fcA (color `withOpacity` 0.8)
-   # lw 0.2
+   # lw thin
    # lc color
    # translate (v2r a)
 
@@ -196,19 +196,19 @@ renderPlot plot = let
   in strokeT curve
      # translate (r2 $ head plot)
      # lc blue
-     # lw 0.01
+     # lw veryThin
 
 -- ============================== Sphere Projection ============================
 -- TODO add legend
 -- | Render a grid for the chosen projection
 renderSO3ProjGrid  :: Diagram SVG R2
-renderSO3ProjGrid = circle 1 # lc black # lw 0.02
+renderSO3ProjGrid = circle 1 # lc black # lw veryThin
 
 -- | Plot a equaled area pole figure regarding the external frame reference (X,Y,Z or
 -- ND,TD,RD). Plots both half-spheres overlapped.
 renderProjPoint  :: Vec2 -> Diagram SVG R2
 renderProjPoint p = circle (0.01)
-                    # lw 0
+                    # lw none
                     # lcA (red `withOpacity` 0.3)
                     # fcA (red `withOpacity` 0.3)
                     # translate (v2r p)

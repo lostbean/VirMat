@@ -243,6 +243,6 @@ writeWPointsVTKfile file points = let
   foo nid x = let
     (ps, cs) = icosahedron (radius x) (point x)
     psU = V.convert ps
-    ug  = mkUGVTK "WPoint" psU cs
-    in addDataCells ug $ mkCellAttr "GrainID" (\_ _ _ -> nid)
+    attr = mkCellAttr "GrainID" (\_ _ _ -> nid)
+    in mkUGVTK "WPoint" psU cs [] [attr]
   in writeMultiVTKfile file True vtks
