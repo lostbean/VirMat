@@ -24,7 +24,6 @@ import Data.Random.Source.StdGen
 import System.IO
 import System.Random.Mersenne.Pure64
 
-import VirMat.IO.Export.SVG.RenderSVG
 import VirMat.Distributions.GrainSize.StatTools
 
 

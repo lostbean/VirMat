@@ -37,13 +37,6 @@ Executable virmatgen
                       , vector                 >= 0.10
                       , SubZero                >= 0.1
                       , aeson                  >= 0.6
-                      , diagrams-lib           >= 0.5
-                      , diagrams-svg           >= 0.4
-                      , colour                 >= 2.0
-                      , blaze-html             >= 0.6
-                      , blaze-svg              >= 0.3
-                      , blaze-builder          >= 0.3
-                      , bytestring             >= 0.9
                       , mersenne-random-pure64 >= 0.2
                       , random-source          >= 0.3
                       , random-fu              >= 0.2
@@ -70,13 +63,6 @@ library
                       , vector                 >= 0.10
                       , SubZero                >= 0.1
                       , aeson                  >= 0.6
-                      , diagrams-lib           >= 0.5
-                      , diagrams-svg           >= 0.4
-                      , colour                 >= 2.0
-                      , blaze-html             >= 0.6
-                      , blaze-svg              >= 0.3
-                      , blaze-builder          >= 0.3
-                      , bytestring             >= 0.9
                       , mersenne-random-pure64 >= 0.2
                       , random-source          >= 0.3
                       , random-fu              >= 0.2
@@ -96,10 +82,7 @@ library
                         VirMat.Distributions.GrainSize.GrainDistributionGenerator
                         VirMat.Distributions.GrainSize.GrainQuery
                         VirMat.Distributions.Texture.ODFSampling
-                        --VirMat.Distributions.Texture.DiscreteODF
 
                         VirMat.IO.Export.Types
-                        VirMat.IO.Export.VTK.FlexMicro
-                        VirMat.IO.Export.SVG.RenderSVG
 
                         VirMat.IO.Import.Types

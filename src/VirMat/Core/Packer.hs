@@ -25,7 +25,6 @@ import           Hammer.VTK
 
 import           Debug.Trace (trace)
 import           System.IO.Unsafe
-import           VirMat.IO.Export.SVG.RenderSVG
 import           Data.Monoid ((<>))
 
 
@@ -62,7 +61,6 @@ runPacker2D n box ps wall = let
 
   pack (!ps0,!ps1,!wall1) i = let
     time      = trace ("time " ++ show i ++ " = ") $
-                testPacker box ps1 wall1 i $
                 if i > smooth then 0.2 else 0.2 -- + 0.2 * (1 - (fromIntegral i) / (fromIntegral smooth))
     ps2       = updateSP box wall1 ps0 ps1 0.6 time
     len2      = V.length ps2
@@ -73,26 +71,6 @@ runPacker2D n box ps wall = let
     in (ps1,ps2,wall2)
 
   in (arrF1, wallF1)
-
-testPacker :: (Show a)=> Box Point2D -> Vector (WPoint Vec2)
-           -> IntMap (S2 Vec2) -> a -> a1 -> a1
-testPacker box pointSet triangulation i a = let
-  --forces = setForce triangulation pointSet
-  disp   = setDisp triangulation pointSet
-
-  diaUP  = closeUpOnBox box $
-           renderBox2D box
-        <> renderSetPoint2D pointSet
-        -- <> renderSetS2Triangle pointSet triangulation
-        -- <> renderForces pointSet forces
-        <> renderDisp pointSet disp
-
-  renderSize = 1000
-  renderSpec = getSizeSpec (Just renderSize, Just renderSize)
-  render = renderSVGFile ("microstructure_" ++ show i ++ ".svg") renderSpec diaUP
-  in unsafePerformIO $ do
-    render
-    return a
 
 sortGroup :: (Ord a) => [(a, b)] -> [(a, [b])]
 sortGroup = let

@@ -10,10 +10,7 @@ import           Texture.Orientation
 import           Texture.Symmetry
 
 import           VirMat.Core.FlexMicro
-import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
 import           VirMat.Distributions.Texture.ODFSampling
-import           VirMat.IO.Export.SVG.RenderSVG
-import           VirMat.IO.Export.VTK.FlexMicro
 import           VirMat.IO.Import.CommandLine
 import           VirMat.IO.Import.Types
 import           VirMat.Run2D
@@ -36,7 +33,9 @@ main = do
 go3D :: JobRequest -> IO ()
 go3D jobReq = do
   simul <- runVirMat3D jobReq
-  let fm = mkFlexMicro $ grainSet simul
+  let
+    fm :: FlexMicro Vec3 ()
+    fm = mkFlexMicro $ grainSet simul
 {--
   --writeFM "fm.vtu" fm 2
   let
@@ -53,11 +52,6 @@ go3D jobReq = do
     plot = renderPoleFigureGB Lambert ns
     in renderSVGFile "pf.svg" (sizeSpec (Just 200, Nothing)) plot
 --}
-
-  rand <- randomSO3 jobReq 3000
-  let spec = getSizeSpec (Just 200, Nothing)
-  renderSVGFile "pfRandStero.svg" spec $ renderStereoPoleFigure  rand
-  renderSVGFile "pfRandLambe.svg" spec $ renderLambertPoleFigure rand
 
   print "Get Points..."
   --writeWPointsVTKfile "points.vtu" (pointSet simul)
@@ -89,11 +83,11 @@ go3D jobReq = do
 go2D :: JobRequest -> IO ()
 go2D jobReq = do
   simul <- runVirMat2D jobReq
-  print $ pointSet simul
-  print $ VirMat.Types.box simul
-  printMicro (output jobReq) simul
-
-
+  let
+    fm :: FlexMicro Vec2 ()
+    fm = mkFlexMicro $ grainSet simul
+  --print $ flexGraph2D fm
+  writeMultiVTKfile "voronoi-2d.vtu" True $ renderFlexMicro [showGrainID] 1 fm
 
 {--
 -- ======================== Quadri Junction Force Simulation =============================

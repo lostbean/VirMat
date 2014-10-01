@@ -44,7 +44,7 @@ newtype Volume = Volume
   } deriving (Eq, Ord, Num, Fractional, Show)
 
 -- TODO change better name or create a class
-getFaceAreaFracHist :: VoronoiMicro a -> [Double]
+getFaceAreaFracHist :: MicroGraph a b c d -> [Double]
 getFaceAreaFracHist = map getArea . getFaceAreas
 
 getFaceAreas m = let
@@ -52,12 +52,12 @@ getFaceAreas m = let
   as = map (V.fromList . getVoronoiVertex m . getVoronoiEdges m)
   in undefined
 
-getVoronoiEdges :: VoronoiMicro v -> GrainID -> HashSet EdgeID
+getVoronoiEdges :: MicroGraph a b c d -> GrainID -> HashSet EdgeID
 getVoronoiEdges m gid = let
   func = HS.foldl' (\es f -> maybe es (HS.union es) (getFaceProp f m >>= getPropConn)) HS.empty
   in maybe HS.empty func (getGrainProp gid m >>= getPropConn)
 
-getVoronoiVertex :: VoronoiMicro v -> HashSet EdgeID -> [v]
+getVoronoiVertex :: MicroGraph a b c v -> HashSet EdgeID -> [v]
 getVoronoiVertex m es = let
   vs = HS.foldl' (\vs e -> maybe vs (HS.union vs . func) (getEdgeProp e m >>= getPropConn)) HS.empty es
   func (FullEdge v1 v2) = HS.fromList [v1, v2]
