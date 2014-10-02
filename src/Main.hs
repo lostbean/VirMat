@@ -11,6 +11,7 @@ import           Texture.Symmetry
 
 import           VirMat.Core.FlexMicro
 import           VirMat.Distributions.Texture.ODFSampling
+import           VirMat.Distributions.GrainSize.GrainQuery
 import           VirMat.IO.Import.CommandLine
 import           VirMat.IO.Import.Types
 import           VirMat.Run2D
@@ -28,7 +29,7 @@ main = do
     Dimension2D -> go2D jobReq
     Dimension3D -> go3D jobReq
 
--- ============================== 3D ======================================
+-- ====================================== 3D =============================================
 
 go3D :: JobRequest -> IO ()
 go3D jobReq = do
@@ -36,6 +37,37 @@ go3D jobReq = do
   let
     fm :: FlexMicro Vec3 ()
     fm = mkFlexMicro $ grainSet simul
+    q1 = mkQuaternion $ Vec4 0 0 0 1
+    q2 = mkQuaternion $ Vec4 0 0 1 0
+    q3 = mkQuaternion $ Vec4 0 1 0 0
+    dist = mkBingham (1, q1) (1, q2) (1, q3)
+  fmTex <- addMicroFlexTexture dist fm
+  let
+    fmMorphTex = add3DGrainMorph 2 fmTex
+    showVolu = RenderGrainProp ("Volume", \_ x -> fmap (getVolume . grainVolume . fst) x)
+    showArea = RenderGrainProp ("Area", \_ x -> fmap (getArea . grainArea . fst) x)
+    showNeig = RenderGrainProp ("Neighbors", \_ x -> fmap (grainNeighbors . fst) x)
+    showTex  = RenderGrainProp ("IPF-ND", \_ x -> fmap (getIPFRGBColor Cubic ND . snd) x)
+    showall = [showGrainID, showVolu, showArea, showNeig, showTex]
+
+  writeMultiVTKfile "virmat-3d.vtu" True $ renderFlexMicro showall 1 fmMorphTex
+
+-- ========================================== 2D =========================================
+
+go2D :: JobRequest -> IO ()
+go2D jobReq = do
+  simul <- runVirMat2D jobReq
+  let
+    fm :: FlexMicro Vec2 ()
+    fm = mkFlexMicro $ grainSet simul
+    fmMorph = add2DGrainMorph 2 fm
+    showLeng = RenderGrainProp ("Length", \_ x -> fmap (getLength . grainLength . fst) x)
+    showArea = RenderGrainProp ("Area", \_ x -> fmap (getArea . grainArea . fst) x)
+    showNeig = RenderGrainProp ("Neighbors", \_ x -> fmap (grainNeighbors . fst) x)
+    showall = [showGrainID, showLeng, showArea, showNeig]
+  writeMultiVTKfile "virmat-2d.vtu" True $ renderFlexMicro showall 1 fmMorph
+
+-- ======================== Quadri Junction Force Simulation =============================
 {--
   --writeFM "fm.vtu" fm 2
   let
@@ -51,47 +83,18 @@ go3D jobReq = do
     ns = V.map getNormalTri ts
     plot = renderPoleFigureGB Lambert ns
     in renderSVGFile "pf.svg" (sizeSpec (Just 200, Nothing)) plot
---}
-
-  print "Get Points..."
-  --writeWPointsVTKfile "points.vtu" (pointSet simul)
-
-  print "Get Voronoi..."
-  writeMultiVTKfile "voronoi0.vtu" True $ renderFlexMicro [] 0 fm
-  writeMultiVTKfile "voronoi1.vtu" True $ renderFlexMicro [showGrainID] 1 fm
-
-  let
-    q1 = mkQuaternion $ Vec4 0 0 0 1
-    q2 = mkQuaternion $ Vec4 0 0 1 0
-    q3 = mkQuaternion $ Vec4 0 1 0 0
-    dist = mkBingham (1, q1) (1, q2) (1, q3)
-  fmTex <- addMicroFlexTexture dist fm
-
-  writeMultiVTKfile "voronoiTex1.vtu" True $ renderFlexMicro [showGrainID, showVTKIPF Cubic ND] 1 fmTex
 
   print "Get Stable Quadriple junctions..."
-  -- writeFM "fmQuad.vtu" quadFM 2
+  writeFM "fmQuad.vtu" quadFM 2
 
   print "first angles"
-  -- print $ listAngle fm
+  print $ listAngle fm
 
   print "first angles"
-  -- print $ listAngle quadFM
-
--- ========================================== 2D =========================================
-
-go2D :: JobRequest -> IO ()
-go2D jobReq = do
-  simul <- runVirMat2D jobReq
-  let
-    fm :: FlexMicro Vec2 ()
-    fm = mkFlexMicro $ grainSet simul
-  --print $ flexGraph2D fm
-  writeMultiVTKfile "voronoi-2d.vtu" True $ renderFlexMicro [showGrainID] 1 fm
+  print $ listAngle quadFM
+--}
 
 {--
--- ======================== Quadri Junction Force Simulation =============================
-
 getNormalTri :: (Vec3, Vec3, Vec3) -> Vec3
 getNormalTri (a, b, c) = let
   ba = b &- a

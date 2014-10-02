@@ -3,12 +3,12 @@
 
 module VirMat.Distributions.Texture.ODFSampling
        ( addMicroFlexTexture
-       , showVTKIPF
+       , getIPFRGBColor
        ) where
 
 import qualified Data.HashMap.Strict as HM
 
-import           Control.Applicative ((<$>))
+import           Data.Word (Word8)
 
 import           Texture.Bingham
 import           Texture.IPF
@@ -31,9 +31,7 @@ addMicroFlexTexture dist fm = let
      let qm = HM.fromList $ zip gids gs
      return $ modifyGrainProps (\gid _ -> maybe zerorot id (HM.lookup gid qm)) fm
 
--- | Function to render IPF colors in VTK file.
-showVTKIPF :: Symm -> RefFrame -> RenderGrainProp v Quaternion
-showVTKIPF symm ref = let
-  unColor (RGBColor rgb) = rgb
-  foo = unColor . getRGBColor . snd . getIPFColor symm ref
-  in RenderGrainProp ( "IPF " ++ show ref, \_ prop -> foo <$> prop)
+-- | Get a function for convert orientation in RGB IPF colors.
+getIPFRGBColor :: Symm -> RefFrame -> (Quaternion -> (Word8, Word8, Word8))
+getIPFRGBColor symm ref = unColor . getRGBColor . snd . getIPFColor symm ref
+  where unColor (RGBColor rgb) = rgb

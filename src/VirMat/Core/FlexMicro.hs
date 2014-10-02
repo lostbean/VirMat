@@ -185,6 +185,18 @@ getFlexFaces3D MicroGraph{..} (FlexMicro3D fm ps) = let
 
 -- =================================================================================
 
+-- | @faceCenter@ calculates the mass center of a given polygon defined by
+-- a array of points and a list of edges (reference to array of points).
+-- It expects a non-empty face otherwise a error will rise. DON'T EXPORT ME!!!
+faceCenter :: (AbelianGroup v, MultiVec v)=> Vector v -> Vector (Vector Int) -> Maybe v
+faceCenter ps vs
+  | n > 0     = return $ total &* (1 / fromIntegral n)
+  | otherwise = Nothing
+  where
+    sumBoth (vacu, nacu) x = (vacu &+ sumFecth x, nacu + V.length x)
+    sumFecth   = V.foldl' (\acc i -> acc &+ (ps V.! i)) zero
+    (total, n) = V.foldl' sumBoth (zero, 0) vs
+
 -- | Finds the subdivision mesh for an closed set of subdivision lines
 mkMesh :: Vector (Vector Int) -> Int -> Maybe MeshConn
 mkMesh es fc = do
@@ -201,18 +213,6 @@ mkMesh es fc = do
       | otherwise      = IS.empty
     cornersSet = V.foldl' (\acc v -> acc `IS.union` getCorners v) IS.empty es
     corners    = IS.toList cornersSet
-
--- | @faceCenter@ calculates the mass center of a given polygon defined by
--- a array of points and a list of edges (reference to array of points).
--- It expects a non-empty face otherwise a error will rise. DON'T EXPORT ME!!!
-faceCenter :: (AbelianGroup v, MultiVec v)=> Vector v -> Vector (Vector Int) -> Maybe v
-faceCenter ps vs
-  | n > 0     = return $ total &* (1 / fromIntegral n)
-  | otherwise = Nothing
-  where
-    sumBoth (vacu, nacu) x = (vacu &+ sumFecth x, nacu + V.length x)
-    sumFecth   = V.foldl' (\acc i -> acc &+ (ps V.! i)) zero
-    (total, n) = V.foldl' sumBoth (zero, 0) vs
 
 -- | Sort and check closure of a set of lines (segments)
 sortEdges :: (SeqSeg a)=> Vector a -> Maybe (Vector a)
