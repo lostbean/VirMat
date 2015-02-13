@@ -40,9 +40,9 @@ Executable virmatgen
                       , mersenne-random-pure64 >= 0.2
                       , random-source          >= 0.3
                       , random-fu              >= 0.2
-                      , transformers           == 0.3.*
-                      , mtl                    == 2.1.*
-                      , optparse-applicative   == 0.7.*
+                      , transformers           >= 0.3
+                      , mtl                    >= 2.1
+                      , optparse-applicative   >= 0.7
     if flag(generator)
       Buildable:        True
     else
@@ -66,8 +66,8 @@ library
                       , mersenne-random-pure64 >= 0.2
                       , random-source          >= 0.3
                       , random-fu              >= 0.2
-                      , transformers           == 0.3.*
-                      , mtl                    == 2.1.*
+                      , transformers           >= 0.3
+                      , mtl                    >= 2.1
 
     Exposed-modules:    VirMat.Run2D
                         VirMat.Run3D

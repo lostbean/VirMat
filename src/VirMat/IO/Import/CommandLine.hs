@@ -37,7 +37,7 @@ parseDimension = let
 
 parseDistType :: Parser DistributionType
 parseDistType = let
-  pn = (PackedDistribution . max 0) <$> option
+  pn = (PackedDistribution . max 0) <$> option auto
        ( long    "packed-n" <>
          metavar "INT"      <>
          help    "Packing grain placement with a given number of iterations." )
@@ -48,11 +48,11 @@ parseDistType = let
   in pn <|> p <|> r <|> pure (PackedDistribution 60)
 
 parseNGrains :: Parser Int
-parseNGrains =
-  option ( long    "grains" <>
-           short   'n'      <>
-           metavar "INT"    <>
-           help    "Number of grains." )
+parseNGrains = option auto
+  ( long    "grains" <>
+    short   'n'      <>
+    metavar "INT"    <>
+    help    "Number of grains." )
 
 parseDistribution::Parser [CombDist]
 parseDistribution = many $ parseLogNormal <|> parseNormal <|> parseUniform
@@ -60,32 +60,36 @@ parseDistribution = many $ parseLogNormal <|> parseNormal <|> parseUniform
 parseNormal :: Parser CombDist
 parseNormal = let
   func (a,b,c) = CombDist $ Normal a b c
-  p =  option ( long    "norm"                <>
-                metavar "(k, mu, s)"          <>
-                help    "Normal distribution." )
+  p = option auto
+      ( long    "norm"                <>
+        metavar "(k, mu, s)"          <>
+        help    "Normal distribution." )
   in func <$> p
 
 parseLogNormal :: Parser CombDist
 parseLogNormal = let
   func (a,b,c,d) = CombDist $ LogNormal a b c d
-  p =  option ( long    "lnorm"                   <>
-                metavar "(k, mu, mode, o)"   <>
-                help    "Log Normal distribution." )
+  p = option auto
+      ( long    "lnorm"                   <>
+        metavar "(k, mu, mode, o)"   <>
+        help    "Log Normal distribution." )
   in func <$> p
 
 parseUniform :: Parser CombDist
 parseUniform = let
   func (a,b,c) = CombDist $ Uniform a b c
-  p =  option ( long    "uniform"              <>
-                metavar "(k, mu, s)"           <>
-                help    "Uniform distribution." )
+  p = option auto
+      ( long    "uniform"              <>
+        metavar "(k, mu, s)"           <>
+        help    "Uniform distribution." )
   in func <$> p
 
 parseSeed :: Parser RandomSeed
 parseSeed = let
-  p = optional $ option ( long    "seed"        <>
-                          metavar "INT"         <>
-                          help    "Random seed." )
+  p = optional $ option auto
+      ( long    "seed"        <>
+        metavar "INT"         <>
+        help    "Random seed." )
   in maybe NoSeed Seed <$> p
 
 parseOutFile :: Parser Output
