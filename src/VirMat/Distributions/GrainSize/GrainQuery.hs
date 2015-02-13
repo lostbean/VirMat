@@ -25,7 +25,6 @@ import qualified Data.HashSet as HS
 
 import           Data.Vector   (Vector)
 import           Data.Maybe    (mapMaybe)
-import           Data.List     (foldl')
 
 import           Hammer.Math.Algebra
 import           Hammer.MicroGraph
@@ -208,7 +207,7 @@ tetrahedronVolume a b c d = Volume $ abs $ ((a &- d) &. ((b &- d) &^ (c &- d))) 
 
 getCentroid :: (AbelianGroup a, MultiVec a)=> Vector a -> a
 getCentroid v = (V.foldl' (&+) zero v) &* k
-  where k = 1 / (fromIntegral $ V.length v)
+  where k = 1 / fromIntegral (V.length v)
 
 {--  Unused but useful functions 
 triangleNormal :: (AbelianGroup a, DotProd a, CrossProd a, MultiVec a)=> a -> a -> a -> a

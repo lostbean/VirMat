@@ -1,6 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-
 module VirMat.Distributions.GrainSize.StatTools
   ( RandomSeed(..)
   , getRandomGen
@@ -12,14 +9,10 @@ module VirMat.Distributions.GrainSize.StatTools
   ) where
 
 import qualified Data.IntMap as IM
-import qualified Data.List   as L
 
-import           Data.IntMap   (IntMap)
 import           Data.List     (foldl')
-import           Control.Monad (liftM)
 
 import           Data.IORef
-import           Hammer.Math.Algebra
 import           System.Random.Mersenne.Pure64
 
 import           VirMat.IO.Import.Types
@@ -31,7 +24,7 @@ import           VirMat.IO.Export.Types
 
 data MultiDist =
   MultiDist
-  { mDistFunc     :: (Double -> Double)
+  { mDistFunc     :: Double -> Double
   , mDistMean     :: Double
   , mDistInterval :: (Double, Double)
   , mDistModes    :: [Double]
@@ -39,21 +32,21 @@ data MultiDist =
   }
 
 getRandomGen :: RandomSeed -> IO (IORef PureMT)
-getRandomGen x = case x of
-  NoSeed -> newPureMT >>= newIORef
-  (Seed seed) ->  (return $ pureMT (fromIntegral seed)) >>= newIORef
+getRandomGen a = case a of
+  NoSeed   -> newPureMT >>= newIORef
+  (Seed s) -> (return $ pureMT (fromIntegral s)) >>= newIORef
 
 composeDist :: [CombDist] -> Maybe MultiDist
 composeDist [] = Nothing
 composeDist fs = let
-  dist  = foldl' (\acc dist -> (\x -> acc x + (getDistFunc dist) x)) (\_ -> 0) fs
+  dist  = foldl' (\acc d -> (\a -> acc a + (getDistFunc d) a)) (const 0) fs
   modes = map getDistMode fs
-  area  = foldl' (\acc dist -> getDistArea dist + acc) 0 fs
+  area  = foldl' (\acc d -> getDistArea d + acc) 0 fs
 
   mean = let
-    func (sa, ma) dist = let
-      s = getDistArea dist
-      in (s + sa, (s*(getDistMean dist)^2) + ma)
+    func (sa, ma) d = let
+      s = getDistArea d
+      in (s + sa, (s * (getDistMean d) ^ (2 :: Int)) + ma)
     (totalS, totalM) = foldl' func (0,0) fs
     in sqrt (totalM / totalS)
 
@@ -62,7 +55,7 @@ composeDist fs = let
     toList (a,b) = [a,b]
     in (minimum xs, maximum xs)
 
-  in return $ MultiDist
+  in return MultiDist
   { mDistFunc     = dist
   , mDistMean     = mean
   , mDistInterval = interval
@@ -75,14 +68,14 @@ freqHist initial final nbin dist = let
   step          = (final - initial) / (fromIntegral nbin)
   (total, hist) = foldl' add (0, IM.empty) dist
 
-  calcBin x     =
+  calcBin b =
     if total == 0
-    then Coord2D {x = fromIntegral x * step, y = 0}
-    else Coord2D {x = fromIntegral x * step, y = (IM.findWithDefault 0 x hist) / total}
+    then Coord2D {x = fromIntegral b * step, y = 0}
+    else Coord2D {x = fromIntegral b * step, y = (IM.findWithDefault 0 b hist) / total}
 
-  add (total, acc) x = let
-    id = floor $ (x - initial) / step
-    in (total + 1, IM.insertWith (+) id 1 acc)
+  add (totalsum, acc) b = let
+    idnum = floor $ (b - initial) / step
+    in (totalsum + 1, IM.insertWith (+) idnum 1 acc)
 
   in Histogram {binSize = step, bins = map calcBin [0 .. nbin - 1]}
 
@@ -94,18 +87,10 @@ autoHist = autoHist' 1
 
 autoHist' :: Int -> [Double] -> Histogram
 autoHist' k dist = let
-  final = maximum dist
-  init  = minimum dist
+  upper = maximum dist
+  lower = minimum dist
   -- overload number of bins so it can be recombined at the web interface
   over  = if k < 1 then 1 else k
-  n     = (over*) . ceiling . sqrt . fromIntegral . length $ dist
-  in freqHist init final n dist
-
-{--
-fracHist = undefined
-fracHist
-
-  add (total, acc) x = let
-    id = floor $ (x - initial) / step
-    in (total + x, IM.insertWith (+) id x acc)
---}
+  l     = fromIntegral $ length dist :: Double
+  n     = (over *) . ceiling . sqrt $ l
+  in freqHist lower upper n dist

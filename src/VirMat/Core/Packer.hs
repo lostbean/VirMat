@@ -24,8 +24,6 @@ import           Hammer.Math.Algebra
 import           Hammer.VTK
 
 import           Debug.Trace (trace)
-import           System.IO.Unsafe
-import           Data.Monoid ((<>))
 
 
 runPacker :: (Packer a, Buildable S2 a, Show(Box a))=> Int -> Box a -> SetPoint a

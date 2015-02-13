@@ -3,30 +3,21 @@
 
 module VirMat.Core.Sampling
        ( sampleN
+       , sampleOne
        , integrateMDist
        ) where
 
-import qualified Data.IntMap as IM
 import qualified Data.List   as L
 import qualified Data.Vector as V
 
-import Control.Monad             (liftM, replicateM)
-import Control.Monad.IO.Class    (liftIO)
-import Control.Monad.Trans.Class (lift)
-import Data.Vector               ((!),Vector, (//))
+import Data.Vector ((!), Vector)
 
-import Control.Monad.Trans.Maybe
 import Data.IORef
 import Data.Maybe
 import Data.Random
-import Data.Random.RVar
-import Data.Random.Source.StdGen
-import System.IO
 import System.Random.Mersenne.Pure64
 
 import VirMat.Distributions.GrainSize.StatTools
-
-
 
 data Discrete a =
   DiscValue
@@ -51,10 +42,10 @@ data IntegrationBin =
 getAreaBins :: MultiDist -> Vector (IntegrationBin)
 getAreaBins MultiDist{..} = let
   xs    = V.fromList $ L.sort mDistModes
-  min   = DiscValue (fst mDistInterval) 0
-  max   = DiscValue (snd mDistInterval) 0
+  lower = DiscValue (fst mDistInterval) 0
+  upper = DiscValue (snd mDistInterval) 0
   modes = V.map (\x -> DiscValue x (mDistFunc x)) xs
-  df    = min `V.cons` modes `V.snoc` max
+  df    = lower `V.cons` modes `V.snoc` upper
 
   area i a = let
     b     = df!(i+1)
@@ -86,7 +77,6 @@ divConAreaBin func ia@IB{..} = let
     then divConAreaBin func ia1 . divConAreaBin func ia2
     else V.cons ia1 . V.cons ia2
 
-
 -- | Calculate the cummulative function P(x), where P(x) is the integral
 -- of f(t) from (-) infinity to x e.g. the sum of of the area from
 -- (-) infinity to x. More info, (see)[http://www.zweigmedia.com/RealWorld/integral/numint.html]
@@ -95,11 +85,11 @@ integrateMDist mdist = let
   func  = mDistFunc mdist
   bins  = getAreaBins mdist
   areas = V.foldr (\x acc -> divConAreaBin func x acc) V.empty bins
-  init
+  initDisc
     | V.null areas = error "[Sampling] Can't sampling undefined distribution."
     | otherwise    = (\x -> DiscValue (xmin x) 0) . V.head $ areas
   -- The integral of f(t) from a to b is the vaule of the area at b
-  in V.scanl' (\acc x -> DiscValue (xmax x) (discY acc + area x)) init areas
+  in V.scanl' (\acc x -> DiscValue (xmax x) (discY acc + area x)) initDisc areas
 
 -- | Find a vaule by inversion function. Given a Y vaule, find the corresponding
 -- X value in the discrete cumulative function.
@@ -132,8 +122,8 @@ interpolate (a, b) y = let
 
 normalize :: Vector (Discrete Double) -> Vector (Discrete Double)
 normalize df = let
-  max = discY $ V.maximumBy (\a b -> compare (discY a) (discY b)) df
-  in V.map (\x -> x {discY = (discY x) / max}) df
+  upper = discY $ V.maximumBy (\a b -> compare (discY a) (discY b)) df
+  in V.map (\x -> x {discY = (discY x) / upper}) df
 
 -- | Sample N diameter values from @MultiDist distribution.
 sampleN :: MultiDist -> IORef PureMT -> Int -> IO (Vector Double)

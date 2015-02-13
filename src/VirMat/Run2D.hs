@@ -53,7 +53,7 @@ runVirMat2D jobReq = do
                         , grainSet      = grains }
 
 onlyDistInBox :: (PointND a)=> Box a -> SetPoint a -> SetPoint a
-onlyDistInBox box sp = V.filter ((isInBox box).point) sp
+onlyDistInBox box = V.filter (isInBox box . point)
 
 onlySimpleInBox2D :: Box Point2D -> IM.IntMap (S2 Point2D) -> IM.IntMap (S2 Point2D)
-onlySimpleInBox2D box ls = IM.filter ((isInBox box).circleCenter) ls
+onlySimpleInBox2D box = IM.filter (isInBox box . circleCenter)
