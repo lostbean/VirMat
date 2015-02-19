@@ -15,12 +15,15 @@ module VirMat.Core.FlexMicro
        , RenderGrainProp (..)
        , addGrainAttrs
        , showGrainID
+       -- * 2D Grain triangulation
+       , getSubOneTriangulation
        ) where
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet        as HS
 import qualified Data.IntSet         as IS
 import qualified Data.Vector         as V
+import qualified Data.Vector.Unboxed as U
 import qualified Data.List           as L
 
 import           Data.Vector         (Vector)
@@ -276,17 +279,24 @@ renderFace3D fid n FlexMicro3D{..} = renderSubTwo n flexPoints3D <$>
 
 -- ============================== render subdivision surfaces ============================
 
--- | Renders a closed set of subdivision lines(faces in 2D grains) as surface(grain's bulk).
-renderSubOne :: Int -> Vector Vec2 -> Vector (Vector Int) -> Maybe (VTK Vec2)
-renderSubOne n vs es = do
+-- | Construct subdivision triangulation for a 2D grain. Input: level, list of nodes
+-- (junctions), list of GB segments. Output: maybe a pair (list of nodes, list of triangles)
+getSubOneTriangulation :: Int -> Vector Vec2 -> Vector (Vector Int) -> Maybe (Vector Vec2, Vector (Int, Int, Int))
+getSubOneTriangulation n vs es = do
   center <- faceCenter vs es
   mesh   <- mkMesh es (V.length vs)
   let
     sb  = mkSubTwoFromMesh (vs `V.snoc` center) mesh
     sbN = subdivideN n sb
-    ps  = V.convert $ subTwoPoints sbN
+    ps  = subTwoPoints sbN
     ts  = getSubTwoFaces $ subTwoMesh sbN
-  return $ mkUGVTK "FlexMicro" ps ts [] []
+  return (ps, ts)
+
+-- | Renders a closed set of subdivision lines(faces in 2D grains) as surface(grain's bulk).
+renderSubOne :: Int -> Vector Vec2 -> Vector (Vector Int) -> Maybe (VTK Vec2)
+renderSubOne n vs es =
+  (\(ps, ts) -> mkUGVTK "FlexMicro" (V.convert ps) ts [] [])
+  <$> getSubOneTriangulation n vs es
 
 -- | Renders a subdivision surface(faces in 3D grains).
 renderSubTwo :: Int -> Vector Vec3 -> MeshConn -> VTK Vec3
