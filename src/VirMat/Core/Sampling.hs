@@ -1,23 +1,209 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module VirMat.Core.Sampling
        ( sampleN
+       , sampleVol
        , sampleOne
        , integrateMDist
+       -- * 1D distrubutions
+       , LogNormal(..)
+       , Normal(..)
+       , Uniform(..)
+       , CustomDist(..)
+       , CombDist(..)
+       , Distribution(..)
+       , getDistArea
+       , getDistMean
+       , getDistMode
+       , getDistFunc
+       , getDistInterval
+       , MultiDist(..)
+       , composeDist
        ) where
 
 import qualified Data.List   as L
 import qualified Data.Vector as V
 
-import Data.Vector ((!), Vector)
+import Data.Vector   ((!), Vector)
+import Data.Function (on)
 
 import Data.IORef
 import Data.Maybe
-import Data.Random
+import Data.Random (sampleFrom, stdUniform)
 import System.Random.Mersenne.Pure64
 
-import VirMat.Distributions.GrainSize.StatTools
+-- =================================== 1D distributions ==================================
+
+data LogNormal
+  = LogNormal
+  { logNormalScale  :: Double
+  , logNormalMean   :: Double
+  , logNormalMode   :: Double
+  , logNormalOffSet :: Double
+  } deriving (Show)
+
+data Normal
+  = Normal
+  { normalScale :: Double
+  , normalMean  :: Double
+  , normalVar   :: Double
+  } deriving (Show)
+
+data Uniform
+  = Uniform
+  { uniformScale :: Double
+  , uniformMean  :: Double
+  , uniformVar   :: Double
+  } deriving (Show)
+
+data CustomDist
+  = CustomDist
+  { customDist      :: Vector Double
+  , customBinSize   :: Vector Double
+  , customBinCenter :: Vector Double
+  } deriving (Show)
+
+data CombDist = forall a . (Show a, Distribution a )=> CombDist a
+
+instance Show CombDist where
+  show (CombDist x) = show x
+
+getDistArea :: CombDist -> Double
+getDistArea (CombDist x) = distArea x
+
+getDistMean :: CombDist -> Double
+getDistMean (CombDist x) = distMean x
+
+getDistMode :: CombDist -> Double
+getDistMode (CombDist x) = distMode x
+
+getDistFunc :: CombDist -> Double -> Double
+getDistFunc (CombDist x) = distFunc x
+
+getDistInterval :: CombDist -> (Double, Double)
+getDistInterval (CombDist x) = distInterval x
+
+class Distribution a where
+  distArea     :: a -> Double
+  distMean     :: a -> Double
+  distMode     :: a -> Double
+  distFunc     :: a -> (Double -> Double)
+  distInterval :: a -> (Double, Double)
+
+instance Distribution LogNormal where
+  distArea      = logNormalScale
+  distMean dist = logNormalOffSet dist + logNormalMean dist
+  distMode      = logNormalMode
+  distFunc (LogNormal{..}) x = let
+    mu     = log logNormalMode + sigma2
+    sigma2 = (2/3) * log (logNormalMean / logNormalMode)
+    b      = (x * sigma2 * sqrt( 2 * pi))
+    a      = exp (-1 * c)
+    c      = ((log x - mu) ** 2) / (2 * sigma2 ** 2)
+    in if x > 0 then logNormalScale * (a / b) else 0
+  distInterval (LogNormal{..}) = let
+    mu     = log logNormalMode + sigma2
+    sigma2 = (2/3) * log (logNormalMean / logNormalMode)
+    sigma  = sqrt sigma2
+    emu    = exp mu
+    es     = exp sigma
+    ess    = es * es * es
+    in (emu * ess, emu / ess)
+
+instance Distribution Normal where
+  distArea = normalScale
+  distMean = normalMean
+  distMode = normalMean
+  distFunc (Normal{..}) x = let
+    sigma = sqrt normalVar
+    b = (sigma * sqrt (2 * pi))
+    a = exp (-1 * c)
+    c = ((x - normalMean) ** 2) / (2 * normalVar)
+    in normalScale * (a / b)
+  distInterval (Normal{..}) = let
+    threeS = 3 * (sqrt normalVar)
+    in (normalMean - threeS, normalMean + threeS)
+
+instance Distribution Uniform where
+  distArea = uniformScale
+  distMean = uniformMean
+  distMode = uniformMean
+  distFunc (Uniform{..}) x
+    | -b <= a && a <= b = uniformScale / (2 * b)
+    | otherwise         = 0
+    where
+      a = x - uniformMean
+      b = sqrt (3 * uniformVar)
+
+  distInterval (Uniform{..}) = let
+    a = sqrt (3 * uniformVar)
+    in (uniformMean - a, uniformMean + a)
+
+instance Distribution CustomDist where
+  distArea CustomDist{..} = V.sum $ V.zipWith (*) customDist customBinSize
+  distMean CustomDist{..} = let
+    a = V.sum $ V.zipWith (*) customDist customBinCenter
+    b = V.sum customDist
+    in a / b
+  distMode CustomDist{..} = let
+    i = V.maxIndex customDist
+    in customBinCenter V.! i
+  distFunc (CustomDist{..}) x = let
+    r = V.findIndex (x <) customBinCenter
+    func i
+      | i < 1       = i
+      | x >= middle = i
+      | otherwise   = i - 1
+      where middle = 0.5 * ((customBinCenter V.! i) + (customBinSize V.! (i-1)))
+    in maybe 0 ((customDist V.!) . func) r
+  distInterval (CustomDist{..}) = let
+    ip = V.head customBinCenter
+    is = V.head customBinSize
+    fp = V.last customBinCenter
+    fs = V.last customBinSize
+    in (ip - is/2, fp + fs/2)
+
+-- =================================== Merge distributions ===============================
+
+data MultiDist
+  = MultiDist
+  { mDistFunc     :: Double -> Double
+  , mDistMean     :: Double
+  , mDistInterval :: (Double, Double)
+  , mDistModes    :: [Double]
+  , mDistArea     :: Double
+  }
+
+composeDist :: [CombDist] -> Maybe MultiDist
+composeDist [] = Nothing
+composeDist fs = let
+  dist  = L.foldl' (\acc d -> (\a -> acc a + (getDistFunc d) a)) (const 0) fs
+  modes = map getDistMode fs
+  area  = L.foldl' (\acc d -> getDistArea d + acc) 0 fs
+
+  mean = let
+    func (sa, ma) d = let
+      s = getDistArea d
+      in (s + sa, (s * (getDistMean d) ^ (2 :: Int)) + ma)
+    (totalS, totalM) = L.foldl' func (0,0) fs
+    in sqrt (totalM / totalS)
+
+  interval = let
+    xs = concatMap (toList . getDistInterval) fs
+    toList (a,b) = [a,b]
+    in (minimum xs, maximum xs)
+
+  in return MultiDist
+  { mDistFunc     = dist
+  , mDistMean     = mean
+  , mDistInterval = interval
+  , mDistModes    = modes
+  , mDistArea     = area
+  }
+
+-- ===================================== Invert Sampling =================================
 
 data Discrete a =
   DiscValue
@@ -26,7 +212,7 @@ data Discrete a =
   }
 
 instance (Show a)=> Show (Discrete a) where
-  show (DiscValue x y) = "DiscValue " ++ show (x,y)
+  show (DiscValue x y) = "DiscValue " ++ show (x, y)
 
 data IntegrationBin =
   IB
@@ -39,7 +225,7 @@ data IntegrationBin =
 
 -- | Creates an initial set of bins with area based on the  upper and lower
 -- limits and the list of modes. That should guarantee no distribution will be skipped.
-getAreaBins :: MultiDist -> Vector (IntegrationBin)
+getAreaBins :: MultiDist -> Vector IntegrationBin
 getAreaBins MultiDist{..} = let
   xs    = V.fromList $ L.sort mDistModes
   lower = DiscValue (fst mDistInterval) 0
@@ -59,8 +245,8 @@ getAreaBins MultiDist{..} = let
 
   in V.imap area (V.init df)
 
-integral_error :: Double
-integral_error = 10e-5
+integralerror :: Double
+integralerror = 10e-5
 
 -- | Divide and Conquer algorithm for subdivide in small bins until
 -- their area error reaches a predefined minimum.
@@ -73,7 +259,7 @@ divConAreaBin func ia@IB{..} = let
   area2 = delta * 0.5 * (p + pmax)
   ia1   = ia { xmax = x, pmax = p, area = area1 }
   ia2   = ia { xmin = x, pmin = p, area = area2 }
-  in if abs (area1 + area2 - area) > integral_error
+  in if abs (area1 + area2 - area) > integralerror
     then divConAreaBin func ia1 . divConAreaBin func ia2
     else V.cons ia1 . V.cons ia2
 
@@ -99,7 +285,7 @@ invertFx integral y = let
   finder ia ib
     | ay > y && by > y = Nothing
     | ay < y && by < y = Nothing
-    | (abs $ ib - ia) <= 1 = Just $ interpolate (a, b) y
+    | abs (ib - ia) <= 1 = Just $ interpolate (a, b) y
     | otherwise = if isJust h1 then h1 else h2
     where
       h1 = finder ia half
@@ -109,7 +295,7 @@ invertFx integral y = let
       b = integral!ib
       ay = discY a
       by = discY b
-  in if size > 0 then finder 0 (size-1) else Nothing
+  in if size > 0 then finder 0 (size - 1) else Nothing
 
 interpolate :: (Discrete Double, Discrete Double) -> Double -> Double
 interpolate (a, b) y = let
@@ -117,12 +303,12 @@ interpolate (a, b) y = let
   yb = discY b
   xa = discX a
   xb = discX b
-  ratio = (y-ya)/(yb-ya)
-  in xa + (xb-xa)*ratio
+  ratio = (y - ya) / (yb - ya)
+  in xa + (xb - xa) * ratio
 
 normalize :: Vector (Discrete Double) -> Vector (Discrete Double)
 normalize df = let
-  upper = discY $ V.maximumBy (\a b -> compare (discY a) (discY b)) df
+  upper = discY $ V.maximumBy (compare `on` discY) df
   in V.map (\x -> x {discY = (discY x) / upper}) df
 
 -- | Sample N diameter values from @MultiDist distribution.
@@ -134,6 +320,25 @@ sampleN dist gen n = do
                         Just p -> p `V.cons` acc
                         _      -> acc
                     ) V.empty rnd
+
+-- | Sample arbitrary number values from @MultiDist distribution until fulfill the volume/area.
+-- INPUT: distributions, random generator, function to convert diameter to Vol/Area,
+-- max. Vol/Arera. OUTPUT: list of diameters.
+sampleVol :: (Ord b, Num b)=> MultiDist -> IORef PureMT -> (Double -> b) -> b -> IO (Vector Double)
+sampleVol dist gen toVol maxVol = genUntilTotalM (nulvol, []) >>= return . V.fromList
+  where
+    nulvol = toVol 0
+    int    = normalize (integrateMDist dist)
+
+    --genUntilTotalM :: (b , [Double]) -> IO [Double]
+    genUntilTotalM (acc, ds) = do
+      rnd <- sampleFrom gen stdUniform
+      let
+        d = maybe 0 id (invertFx int rnd)
+        v = toVol d
+      if acc >= maxVol
+        then return (d:ds)
+        else genUntilTotalM (acc+v, d:ds)
 
 -- | Sample only one diameter value from @MultiDist distribution.
 sampleOne :: Vector (Discrete Double) -> Double -> Maybe Double

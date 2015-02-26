@@ -36,7 +36,6 @@ Executable virmatgen
                       , unordered-containers   >= 0.2
                       , vector                 >= 0.10
                       , SubZero                >= 0.1
-                      , aeson                  >= 0.6
                       , mersenne-random-pure64 >= 0.2
                       , random-source          >= 0.3
                       , random-fu              >= 0.2
@@ -62,7 +61,6 @@ library
                       , unordered-containers   >= 0.2
                       , vector                 >= 0.10
                       , SubZero                >= 0.1
-                      , aeson                  >= 0.6
                       , mersenne-random-pure64 >= 0.2
                       , random-source          >= 0.3
                       , random-fu              >= 0.2
@@ -78,7 +76,6 @@ library
                         VirMat.Core.VoronoiMicro
                         VirMat.Core.FlexMicro
 
-                        VirMat.Distributions.GrainSize.StatTools
                         VirMat.Distributions.GrainSize.GrainDistributionGenerator
                         VirMat.Distributions.GrainSize.GrainQuery
                         VirMat.Distributions.Texture.ODFSampling

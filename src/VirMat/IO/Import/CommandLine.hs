@@ -8,13 +8,13 @@ module VirMat.IO.Import.CommandLine
 import Options.Applicative
 
 import VirMat.IO.Import.Types
-
+import VirMat.Core.Sampling
 
 parseJob :: Parser JobRequest
 parseJob = VoronoiJob
   <$> parseDimension
+  <*> parseStructureSize
   <*> parseDistType
-  <*> parseNGrains
   <*> parseDistribution
   <*> parseSeed
   <*> parseOutFile
@@ -35,6 +35,18 @@ parseDimension = let
   d2 = flag' Dimension2D (long "2d" <> help "Generate 2D microstructures.")
   in d3 <|> d2 <|> pure Dimension3D
 
+parseStructureSize :: Parser StructureSize
+parseStructureSize = let
+  nd = (NGrains . max 0) <$> option auto
+        ( long    "n2d" <>
+          metavar "INT" <>
+          help    "Generate a microstructure with a given number of grains" )
+  bd = SizeBox <$> option auto
+        ( long    "n2d" <>
+          metavar "(DOUBLE, DOUBLE)" <>
+          help    "Generate a 2D microstructure with a given bounding box" )
+  in nd <|> bd <|> pure (NGrains 500)
+
 parseDistType :: Parser DistributionType
 parseDistType = let
   pn = (PackedDistribution . max 0) <$> option auto
@@ -46,13 +58,6 @@ parseDistType = let
   p  = flag' (PackedDistribution 60)
        ( long "packed" <> help "Packing grain placement with 60 iterations (default)." )
   in pn <|> p <|> r <|> pure (PackedDistribution 60)
-
-parseNGrains :: Parser Int
-parseNGrains = option auto
-  ( long    "grains" <>
-    short   'n'      <>
-    metavar "INT"    <>
-    help    "Number of grains." )
 
 parseDistribution::Parser [CombDist]
 parseDistribution = many $ parseLogNormal <|> parseNormal <|> parseUniform
@@ -84,13 +89,11 @@ parseUniform = let
         help    "Uniform distribution." )
   in func <$> p
 
-parseSeed :: Parser RandomSeed
-parseSeed = let
-  p = optional $ option auto
-      ( long    "seed"        <>
-        metavar "INT"         <>
-        help    "Random seed." )
-  in maybe NoSeed Seed <$> p
+parseSeed :: Parser (Maybe Int)
+parseSeed = optional $ option auto
+            ( long    "seed"        <>
+              metavar "INT"         <>
+              help    "Random seed." )
 
 parseOutFile :: Parser Output
 parseOutFile = Output

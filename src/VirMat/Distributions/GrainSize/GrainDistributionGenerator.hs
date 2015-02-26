@@ -1,17 +1,23 @@
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module VirMat.Distributions.GrainSize.GrainDistributionGenerator
-  ( genFullRandomGrainDistribution
-  , genPoint
-  , DistributedPoints(..)
-  , calcBox
-  , defRatio
-  , randomSO3
-  ) where
+       ( genGrainDistributionByNumber
+       , genGrainDistributionByBox
+       , DistributedPoints(..)
+       , Ratio
+       , Extent
+       , defRatio
+       , calcBox
+       , boxDim
+       , boxExt
+       , genPoint
+       ) where
 
 import qualified Data.Vector as V
 
@@ -23,10 +29,7 @@ import           DeUni.DeWall
 import           Hammer.Math.Algebra
 import           System.Random.Mersenne.Pure64
 
-import           VirMat.Distributions.GrainSize.StatTools
-import           VirMat.IO.Import.Types
 import           VirMat.Core.Sampling
-
 
 data DistributedPoints a =
   DistributedPoints
@@ -36,32 +39,49 @@ data DistributedPoints a =
 
 class (MultiVec v, Pointwise v)=> GenRandom v where
   type Ratio v    :: *
+  data Extent v   :: *
+  -- | Bounding box ratio
   defRatio        :: Ratio v
-  calcBox         :: Double -> Ratio v -> Box v
+  -- | Calculate the bounding box size based on the area/volume
+  calcBox         :: Extent v -> Ratio v -> Box v
+  -- | Calculate the bounding box size based on the population of weighted points.
   calcBoxFromDist :: Vector Double -> Ratio v -> Box v
+  -- | Get the diagonal of the box
   boxDim          :: Box v -> v
+  -- | Get the area/volume of the box
+  boxExt          :: Box v -> Extent v
+  -- | Calculate the area/volume based on the diameter of an circle/sphere
+  diaToExt        :: Double -> Extent v
+  -- | Sample a single point
   genPoint        :: IORef PureMT -> RVar Double -> IO v
 
 instance GenRandom Point2D where
-  type Ratio Point2D = (Double, Double)
+  type    Ratio  Point2D = (Double, Double)
+  newtype Extent Point2D = Area Double deriving (Eq, Ord, Num, Fractional, Show)
 
   defRatio = (1, 1)
 
-  calcBox totalArea (xRatio, yRatio) = let
-    refRatio  = xRatio
-    k1        = yRatio/refRatio
-    a         = sqrt (totalArea/k1)
-    in Box2D {xMax2D = a, xMin2D = 0, yMax2D = a*k1, yMin2D = 0}
+  calcBox (Area area) (xRatio, yRatio) = let
+    refRatio = xRatio
+    k1       = yRatio / refRatio
+    a        = sqrt (area / k1)
+    in Box2D {xMax2D = a, xMin2D = 0, yMax2D = a * k1, yMin2D = 0}
 
-  calcBoxFromDist rs = let
-    diaToArea d = d*d*pi/4
-    totalArea   = V.foldl' (\acc d -> acc + diaToArea d) 0 rs
-    in calcBox (1.1 * totalArea)
+  calcBoxFromDist rs ratio = let
+    totalArea = V.foldl' (\acc d -> acc + diaToExt d) 0 rs
+    in calcBox (1.1 * totalArea) ratio
 
   boxDim Box2D{..} = let
     dx = (xMax2D - xMin2D)
     dy = (yMax2D - yMin2D)
     in Vec2 dx dy
+
+  boxExt Box2D{..} = let
+    dx = (xMax2D - xMin2D)
+    dy = (yMax2D - yMin2D)
+    in Area $ abs (dx * dy)
+
+  diaToExt d = Area $ d * d * pi/4
 
   genPoint gen f = do
     -- To avoid repetition on the pseudo-random generator,
@@ -73,22 +93,22 @@ instance GenRandom Point2D where
     return $ Vec2 a b
 
 instance GenRandom Point3D where
-  type Ratio Point3D = (Double, Double, Double)
+  type    Ratio  Point3D = (Double, Double, Double)
+  newtype Extent Point3D = Vol Double deriving (Eq, Ord, Num, Fractional, Show)
 
   defRatio = (1, 1, 1)
 
-  calcBox totalVolume (xRatio, yRatio, zRatio) = let
+  calcBox (Vol vol) (xRatio, yRatio, zRatio) = let
     refRatio    = xRatio
-    k1          = yRatio/refRatio
-    k2          = zRatio/refRatio
-    a           = (totalVolume/(k1*k2))**(1/3)
-    in Box3D { xMax3D=a,    xMin3D=0
-             , yMax3D=a*k1, yMin3D=0
-             , zMax3D=a*k2, zMin3D=0 }
+    k1          = yRatio / refRatio
+    k2          = zRatio / refRatio
+    a           = (vol / (k1 * k2))**(1/3)
+    in Box3D { xMax3D = a,      xMin3D = 0
+             , yMax3D = a * k1, yMin3D = 0
+             , zMax3D = a * k2, zMin3D = 0 }
 
   calcBoxFromDist rs = let
-    diaToVol d  = d*d*d*pi/6
-    totalVolume = V.foldl' (\acc d -> acc + diaToVol d) 0 rs
+    totalVolume = V.foldl' (\acc d -> acc + diaToExt d) 0 rs
     in calcBox (1.1 * totalVolume)
 
   boxDim Box3D{..} = let
@@ -96,6 +116,14 @@ instance GenRandom Point3D where
     dy = (yMax3D - yMin3D)
     dz = (zMax3D - zMin3D)
     in Vec3 dx dy dz
+
+  boxExt Box3D{..} = let
+    dx = (xMax3D - xMin3D)
+    dy = (yMax3D - yMin3D)
+    dz = (zMax3D - zMin3D)
+    in Vol $ abs (dx * dy * dz)
+
+  diaToExt d  = Vol  $ d * d * d * pi / 6
 
   genPoint gen f = do
     -- To avoid repetition on the pseudo-random generator, use one external gen
@@ -105,16 +133,22 @@ instance GenRandom Point3D where
     c <- sampleFrom gen f
     return $ Vec3 a b c
 
--- | Generate a randomly spatial distribution of weighted points (spheres) where r = sqrt (weight)
--- and follows the diameter distribution given by @MultiDist in @VoronoiJob.
-genFullRandomGrainDistribution::(GenRandom v)=> Ratio v -> JobRequest -> IO (DistributedPoints v)
-genFullRandomGrainDistribution ratio VoronoiJob{..} = case composeDist gsDist of
+getRandomGen :: Maybe Int -> IO (IORef PureMT)
+getRandomGen a = case a of
+  Nothing -> newPureMT >>= newIORef
+  Just s  -> (return $ pureMT (fromIntegral s)) >>= newIORef
+
+-- | Generate a distribution of weighted points (spheres/circles) where radius = sqrt (weight)
+-- that follows the an user defined distribution of diameters. The number of points is also
+-- defined by the user. The bounding box is automatic calculated.
+genGrainDistributionByNumber :: (GenRandom v)=> Ratio v -> Maybe Int
+                             -> [CombDist] -> Int -> IO (DistributedPoints v)
+genGrainDistributionByNumber ratio seed dist n = case composeDist dist of
     Just mdist -> do
       gen <- getRandomGen seed
-      ds  <- sampleN mdist gen targetNumber
-      ps  <- V.replicateM targetNumber (genPoint gen stdUniform)
+      ds  <- sampleN mdist gen n
+      ps  <- V.replicateM n (genPoint gen stdUniform)
       let
-        --(gsFunc, gsMean) = (mDistFunc mdist, mDistMean mdist)
         -- Calculate the box size based on the total volume of
         -- sampled weighted points.
         box     = calcBoxFromDist ds ratio
@@ -123,16 +157,19 @@ genFullRandomGrainDistribution ratio VoronoiJob{..} = case composeDist gsDist of
       return $ DistributedPoints box wpoints
     Nothing -> error "[GrainDistributionGenerator] No target distrubution defined."
 
-randomSO3 :: JobRequest -> Int -> IO (Vector Normal3)
-randomSO3 VoronoiJob{..} n = do
-  gen <- getRandomGen seed
-  let
-    so3 = do
-      p <- genPoint gen (uniform (-1) 1)
+-- | Generate a distribution of weighted points (spheres/circles) where radius = sqrt (weight)
+-- that follows the an user defined distribution of diameters. The bounding box is also
+-- defined by the user. The number of points is automatic calculated.
+genGrainDistributionByBox :: (GenRandom v, Ord (Extent v), Num (Extent v))=> Maybe Int
+                          -> [CombDist] -> Box v -> IO (DistributedPoints v)
+genGrainDistributionByBox seed dist box = case composeDist dist of
+    Just mdist -> do
+      gen <- getRandomGen seed
+      let vol = boxExt box
+      ds  <- sampleVol mdist gen diaToExt vol
+      ps  <- V.replicateM (V.length ds) (genPoint gen stdUniform)
       let
-        normP = norm p
-        vec   = p &* (1 / normP)
-      if normP > 1
-        then so3
-        else return $ toNormalUnsafe vec
-  V.replicateM n so3
+        delta   = boxDim box
+        wpoints = V.zipWith (\d p -> WPoint (d*d/4) (delta &! p)) ds ps
+      return $ DistributedPoints box wpoints
+    Nothing -> error "[GrainDistributionGenerator] No target distrubution defined."
