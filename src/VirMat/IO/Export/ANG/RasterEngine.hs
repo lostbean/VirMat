@@ -4,6 +4,8 @@ module VirMat.IO.Export.ANG.RasterEngine
        ( rasterTriangle
        , rasterTriangleFaster
        , flexmicroToANG
+       , getGrainMeshAndProp
+       , isInsideTriangle
        ) where
 
 import qualified Data.Vector          as V
@@ -24,8 +26,8 @@ import DeUni.Types
 
 import VirMat.Core.FlexMicro
 
---import Debug.Trace
---dbg a = trace (show a) a
+import Debug.Trace
+dbg a = trace (show a) a
 
 -- =============================== tools for ANG's grid ==================================
 
@@ -139,18 +141,25 @@ crossProduct (Vec2 ax ay) (Vec2 bx by) = ax*by - ay*bx
 rasterTriangle :: ANGgrid -> Vec2 -> Vec2 -> Vec2 -> [(Int, Int)]
 rasterTriangle g p1 p2 p3 = let
   ((llx,lly), (urx, ury)) = boundingBox g p1 p2 p3
+  mesh = [(i, j) | i <- [llx..urx], j <- [lly..ury]]
+  -- using memorization of "isInsideTriangle p1 p2 p3"
+  func = isInsideTriangle (p1, p2, p3) . (\(x, y) -> Vec2 x y) . fromGrid g
+  in filter func mesh
+
+-- | Test if point is inside the triangle. It has memorization on the first parameter
+-- (triangle) therefore call it with partial application.
+isInsideTriangle :: (Vec2, Vec2, Vec2) -> Vec2 -> Bool
+isInsideTriangle (p1, p2, p3 )= let
+  -- memorization
   vs1 = p2 &- p1
   vs2 = p3 &- p1
-  mesh = [(i, j) | i <- [llx..urx], j <- [lly..ury]]
-  func ij = let
-    (x, y) = fromGrid g ij
-    p = Vec2 x y &- p1
-    k = crossProduct vs1 vs2
+  k   = crossProduct vs1 vs2
+  in \x -> let
+    p = x &- p1
     s = crossProduct p vs2 / k
     t = crossProduct vs1 p / k
     -- is inside triangle?
     in (s >= 0) && (t >= 0) && (s + t <= 1)
-  in filter func mesh
 
 -- ================================= ANG Construction ====================================
 
@@ -220,25 +229,29 @@ angInit step box = let
 
 -- ================================== Raster FlexMicro ===================================
 
-renderGrains2D :: GrainID -> Int -> FlexMicro Vec2 g -> Maybe (Vector Vec2, Vector (Int, Int, Int), g)
-renderGrains2D gid n fm@FlexMicro2D{..} = do
-  (prop, grainConn) <- getPropBoth =<< getGrainProp gid flexGraph2D
-  (ps, ts)          <- renderGrainMesh grainConn n fm
-  return (ps, ts, prop)
-
-renderGrainMesh :: HS.HashSet FaceID -> Int -> FlexMicro Vec2 a -> Maybe (Vector Vec2, Vector (Int, Int, Int))
-renderGrainMesh fs n FlexMicro2D{..} = let
+getGrainMesh :: HS.HashSet FaceID -> Int -> FlexMicro Vec2 a -> Maybe (Vector Vec2, Vector (Int, Int, Int))
+getGrainMesh fs n FlexMicro2D{..} = let
   func acc fid = maybe acc (V.snoc acc) (getPropValue =<< getFaceProp fid flexGraph2D)
   es = HS.foldl' func V.empty fs
   in getSubOneTriangulation n flexPoints2D es
 
+-- | Extract the grain's value and its triangular mesh with a given level of subdivision.
+-- INPUT: grain ID, level of mesh subdivision, microstructure. OUTPUT: (nodes, triangles, property)  
+getGrainMeshAndProp :: GrainID -> Int -> FlexMicro Vec2 g -> Maybe (Vector Vec2, Vector (Int, Int, Int), g)
+getGrainMeshAndProp gid n fm@FlexMicro2D{..} = do
+  (prop, grainConn) <- getPropBoth =<< getGrainProp gid flexGraph2D
+  (ps, ts)          <- getGrainMesh grainConn n fm
+  return (ps, ts, prop)
+
+-- | Transform a microstructure to ANG using raster algorithm. INPUT: level of subdivision,
+-- step size, bounding box, microstructure. OUTPUT: ANG data structure
 flexmicroToANG :: Int -> Double -> Box Point2D -> FlexMicro Vec2 Quaternion -> ANGdata
 flexmicroToANG n step box fm@FlexMicro2D{..} = let
   a0 = angInit step box
   gs = getGrainIDList flexGraph2D
   toPos = toLinPos (grid a0)
   func m gid = let
-    (ps, ts, q) = fromMaybe (V.empty, V.empty, zerorot) (renderGrains2D gid n fm)
+    (ps, ts, q) = fromMaybe (V.empty, V.empty, zerorot) (getGrainMeshAndProp gid n fm)
     fillTriangle (p1, p2, p3) = let
       xys = rasterTriangle (grid a0) (ps V.! p1) (ps V.! p2) (ps V.! p3)
       in mapM_ (\xy -> let pos = toPos xy in VM.write m pos (mkPoint q 1 xy 1)) xys
@@ -247,10 +260,9 @@ flexmicroToANG n step box fm@FlexMicro2D{..} = let
 
 -- ====================================== testing ========================================
 
-{--
 test :: ANGdata
 test = let
-  step = 0.1
+  step = 0.5
   box  = Box2D {xMax2D = 10, xMin2D = 0, yMax2D = 10, yMin2D = 0}
 
   a0 = angInit step box
@@ -261,4 +273,5 @@ test = let
                          in VM.write m pos (mkPoint zerorot 1 xy 1)
                  ) xys
   in a0 {nodes = V.modify func (nodes a0)}
+{--
 --}
