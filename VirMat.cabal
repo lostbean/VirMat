@@ -80,6 +80,9 @@ library
                         VirMat.Distributions.GrainSize.GrainQuery
                         VirMat.Distributions.Texture.ODFSampling
 
+                        VirMat.IO.Export.ANG.RasterEngine
                         VirMat.IO.Export.Types
 
                         VirMat.IO.Import.Types
+
+                        VirMat.PhaseTrans

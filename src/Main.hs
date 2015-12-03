@@ -2,21 +2,23 @@
 
 module Main where
 
-import           Hammer.VTK (writeMultiVTKfile)
+import Hammer.VTK (writeMultiVTKfile)
 
-import           Hammer.Math.Algebra
-import           Texture.Bingham
-import           Texture.Orientation
-import           Texture.Symmetry
+import Hammer.Math.Algebra
+import Texture.Bingham
+import Texture.Orientation
+import Texture.Symmetry
+import File.ANGWriter
 
-import           VirMat.Core.FlexMicro
-import           VirMat.Distributions.Texture.ODFSampling
-import           VirMat.Distributions.GrainSize.GrainQuery
-import           VirMat.IO.Import.CommandLine
-import           VirMat.IO.Import.Types
-import           VirMat.Run2D
-import           VirMat.Run3D
-import           VirMat.Types
+import VirMat.Core.FlexMicro
+import VirMat.Distributions.Texture.ODFSampling
+import VirMat.Distributions.GrainSize.GrainQuery
+import VirMat.IO.Import.CommandLine
+import VirMat.IO.Import.Types
+import VirMat.Run2D
+import VirMat.Run3D
+import VirMat.Types
+import VirMat.PhaseTrans
 
 import           Debug.Trace
 debug :: Show a => String -> a -> a
@@ -66,3 +68,6 @@ go2D jobReq = do
     showNeig = RenderGrainProp ("Neighbors", \_ x -> fmap (grainNeighbors . fst) x)
     showall = [showGrainID, showLeng, showArea, showNeig]
   writeMultiVTKfile "virmat-2d.vtu" True $ renderFlexMicro showall 1 fmMorph
+  -- generate ANG file
+  ang <- generateANG 0.1 simul
+  renderANGFile "virmat-2d.ang" ang
