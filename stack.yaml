@@ -6,11 +6,11 @@ resolver: lts-2.22
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
-- ../hammer/
-- ../sledge/
-- ../queryforest/
-- ../DeUni/
-- ../SubZero/
+- packages/hammer/
+- packages/sledge/
+- packages/queryforest/
+- packages/DeUni/
+- packages/SubZero/
 
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)

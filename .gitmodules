@@ -1,0 +1,18 @@
+[submodule "packages/sledge"]
+	path = packages/sledge
+	url = git@github.com:lostbean/sledge.git
+[submodule "packages/hammer"]
+	path = packages/hammer
+	url = git@github.com:lostbean/hammer.git
+[submodule "packages/queryforest"]
+	path = packages/queryforest
+	url = git@github.com:lostbean/queryforest.git
+[submodule "packages/subzero"]
+	path = packages/subzero
+	url = git@github.com:lostbean/subzero.git
+[submodule "packages/SubZero"]
+	path = packages/SubZero
+	url = git@github.com:lostbean/SubZero.git
+[submodule "packages/DeUni"]
+	path = packages/DeUni
+	url = git@github.com:lostbean/DeUni.git
