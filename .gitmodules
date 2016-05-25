@@ -13,3 +13,9 @@
 [submodule "packages/DeUni"]
 	path = packages/DeUni
 	url = git@github.com:lostbean/DeUni.git
+[submodule "packages/VTK"]
+	path = packages/VTK
+	url = git@github.com:lostbean/VTK.git
+[submodule "packages/mcl"]
+	path = packages/mcl
+	url = git@github.com:lostbean/mcl.git
