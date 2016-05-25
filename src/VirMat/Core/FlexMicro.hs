@@ -26,21 +26,17 @@ import qualified Data.Vector         as V
 import qualified Data.Vector.Unboxed as U
 import qualified Data.List           as L
 
-import           Data.Vector         (Vector)
-import           Control.Applicative ((<$>))
+import Data.Maybe
+import Data.Vector         (Vector)
+import Control.Applicative ((<$>))
 
-import           Data.Maybe
+import Hammer.Math.Algebra
+import Hammer.MicroGraph
+import Hammer.Math.SortSeq
+import Hammer.VTK
+import SubZero
 
-import           Hammer.Math.Algebra
-import           Hammer.MicroGraph
-import           Hammer.Math.SortSeq
-import           Hammer.VTK
-import           SubZero
-
-import           VirMat.Core.VoronoiMicro
-
---import Debug.Trace
---dbg a = trace (">>" ++ show a) a
+import VirMat.Core.VoronoiMicro
 
 -- ================================ FlexMicroBuilder =====================================
 
@@ -48,7 +44,7 @@ class FlexMicroBuilder v where
   -- | Stores a flexible microstructure using Subdivision Surfaces. The topology and
   -- the values are store separately in order to allow fast update of values. The topology is
   -- represented by @MicroGraph@.
-  data FlexMicro :: * -> * -> *
+  data FlexMicro v a :: *
   -- | This function converts a Voronoi microstructure (convex polygonal geomerty)
   -- to flexible microstructure where arbitrary shape of grains are allowed.
   -- Such a feature is provide by using Subdivision Surfaces.

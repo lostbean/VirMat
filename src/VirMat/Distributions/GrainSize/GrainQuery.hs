@@ -1,10 +1,12 @@
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE
+    TypeSynonymInstances
+  , FlexibleInstances
+  , FlexibleContexts
+  , BangPatterns
+  , FlexibleContexts
+  , RecordWildCards
+  , GeneralizedNewtypeDeriving
+  #-}
 
 module VirMat.Distributions.GrainSize.GrainQuery
   ( Volume (getVolume)
@@ -65,10 +67,9 @@ nullmorph = GrainMorph
 add2DGrainMorph :: Int -> FlexMicro Vec2 a -> FlexMicro Vec2 (GrainMorph Vec2, a)
 add2DGrainMorph n fm@FlexMicro2D{..} = modifyGrainProps func fm
   where
-    func _ prop = let
-      m = maybe nullmorph genmorph (getPropConn prop)
-      x = maybe undefined id       (getPropValue prop)
-      in (m, x)
+    func gid prop = case prop of
+      GrainProp m x   -> (genmorph m, x)
+      NullGrainProp _ -> error $ "No Property on grain " ++ show gid
     genmorph fs = let
       foo fid = getFaceProp fid flexGraph2D >>= getPropValue
       ms = V.fromList $ mapMaybe foo (HS.toList fs)
@@ -86,10 +87,9 @@ add2DGrainMorph n fm@FlexMicro2D{..} = modifyGrainProps func fm
 add3DGrainMorph :: Int -> FlexMicro Vec3 a -> FlexMicro Vec3 (GrainMorph Vec3, a)
 add3DGrainMorph n fm@FlexMicro3D{..} = modifyGrainProps func fm
   where
-    func _ prop = let
-      m = maybe nullmorph genmorph (getPropConn prop)
-      x = maybe undefined id       (getPropValue prop)
-      in (m, x)
+    func gid prop = case prop of
+      GrainProp m x   -> (genmorph m, x)
+      NullGrainProp _ -> error $ "No Property on grain " ++ show gid
     genmorph fs = let
       foo fid = getFaceProp fid flexGraph3D >>= getPropValue
       ms = V.fromList $ mapMaybe foo (HS.toList fs)
