@@ -1,35 +1,35 @@
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE RecordWildCards #-}
-
+{-# LANGUAGE
+    TypeSynonymInstances
+  , TypeFamilies
+  , FlexibleInstances
+  , FlexibleContexts
+  , GeneralizedNewtypeDeriving
+  , NamedFieldPuns
+  , RecordWildCards
+  #-}
 module VirMat.Distributions.GrainSize.GrainDistributionGenerator
-       ( genGrainDistributionByNumber
-       , genGrainDistributionByBox
-       , DistributedPoints(..)
-       , Ratio
-       , Extent
-       , defRatio
-       , calcBox
-       , boxDim
-       , boxExt
-       , genPoint
-       ) where
+  ( genGrainDistributionByNumber
+  , genGrainDistributionByBox
+  , DistributedPoints(..)
+  , Ratio
+  , Extent
+  , defRatio
+  , calcBox
+  , boxDim
+  , boxExt
+  , genPoint
+  ) where
 
+
+import Data.IORef
+import Data.Random
+import DeUni.DeWall
+import Linear.Vect
+import System.Random.Mersenne.Pure64
+import Data.Vector (Vector)
 import qualified Data.Vector as V
 
-import           Data.Vector (Vector)
-
-import           Data.IORef
-import           Data.Random
-import           DeUni.DeWall
-import           Hammer.Math.Algebra
-import           System.Random.Mersenne.Pure64
-
-import           VirMat.Core.Sampling
+import VirMat.Core.Sampling
 
 data DistributedPoints a =
   DistributedPoints
@@ -37,8 +37,8 @@ data DistributedPoints a =
   , setPoint :: SetPoint a
   }
 
-class (MultiVec v, Pointwise v)=> GenRandom v where
-  type Ratio v    :: *
+class GenRandom v where
+  type Ratio  v   :: *
   data Extent v   :: *
   -- | Bounding box ratio
   defRatio        :: Ratio v
@@ -47,17 +47,17 @@ class (MultiVec v, Pointwise v)=> GenRandom v where
   -- | Calculate the bounding box size based on the population of weighted points.
   calcBoxFromDist :: Vector Double -> Ratio v -> Box v
   -- | Get the diagonal of the box
-  boxDim          :: Box v -> v
+  boxDim          :: Box v -> v Double
   -- | Get the area/volume of the box
   boxExt          :: Box v -> Extent v
   -- | Calculate the area/volume based on the diameter of an circle/sphere
   diaToExt        :: Double -> Extent v
   -- | Sample a single point
-  genPoint        :: IORef PureMT -> RVar Double -> IO v
+  genPoint        :: IORef PureMT -> RVar Double -> IO (v Double)
 
-instance GenRandom Point2D where
-  type    Ratio  Point2D = (Double, Double)
-  newtype Extent Point2D = Area Double deriving (Eq, Ord, Num, Fractional, Show)
+instance GenRandom Vec2 where
+  type    Ratio  Vec2 = (Double, Double)
+  newtype Extent Vec2 = Area Double deriving (Eq, Ord, Num, Fractional, Show)
 
   defRatio = (1, 1)
 
@@ -92,9 +92,9 @@ instance GenRandom Point2D where
     b <- sampleFrom gen f
     return $ Vec2 a b
 
-instance GenRandom Point3D where
-  type    Ratio  Point3D = (Double, Double, Double)
-  newtype Extent Point3D = Vol Double deriving (Eq, Ord, Num, Fractional, Show)
+instance GenRandom Vec3 where
+  type    Ratio  Vec3 = (Double, Double, Double)
+  newtype Extent Vec3 = Vol Double deriving (Eq, Ord, Num, Fractional, Show)
 
   defRatio = (1, 1, 1)
 
@@ -136,13 +136,13 @@ instance GenRandom Point3D where
 getRandomGen :: Maybe Int -> IO (IORef PureMT)
 getRandomGen a = case a of
   Nothing -> newPureMT >>= newIORef
-  Just s  -> (return $ pureMT (fromIntegral s)) >>= newIORef
+  Just s  -> newIORef $ pureMT (fromIntegral s)
 
 -- | Generate a distribution of weighted points (spheres/circles) where radius = sqrt (weight)
 -- that follows the an user defined distribution of diameters. The number of points is also
 -- defined by the user. The bounding box is automatic calculated.
-genGrainDistributionByNumber :: (GenRandom v)=> Ratio v -> Maybe Int
-                             -> [CombDist] -> Int -> IO (DistributedPoints v)
+genGrainDistributionByNumber :: (GenRandom v, Pointwise (v Double))
+                             => Ratio v -> Maybe Int -> [CombDist] -> Int -> IO (DistributedPoints v)
 genGrainDistributionByNumber ratio seed dist n = case composeDist dist of
     Just mdist -> do
       gen <- getRandomGen seed
@@ -160,8 +160,11 @@ genGrainDistributionByNumber ratio seed dist n = case composeDist dist of
 -- | Generate a distribution of weighted points (spheres/circles) where radius = sqrt (weight)
 -- that follows the an user defined distribution of diameters. The bounding box is also
 -- defined by the user. The number of points is automatic calculated.
-genGrainDistributionByBox :: (GenRandom v, Ord (Extent v), Num (Extent v))=> Maybe Int
-                          -> [CombDist] -> Box v -> IO (DistributedPoints v)
+genGrainDistributionByBox :: (GenRandom v
+                             , Ord (Extent v)
+                             , Num (Extent v)
+                             , Pointwise (v Double)
+                             ) => Maybe Int -> [CombDist] -> Box v -> IO (DistributedPoints v)
 genGrainDistributionByBox seed dist box = case composeDist dist of
     Just mdist -> do
       gen <- getRandomGen seed

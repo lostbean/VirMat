@@ -1,33 +1,27 @@
 {-# LANGUAGE RecordWildCards #-}
-
 module VirMat.IO.Export.ANG.RasterEngine
-       ( rasterTriangle
-       , rasterTriangleFaster
-       , flexmicroToANG
-       , getGrainMeshAndProp
-       , isInsideTriangle
-       ) where
-
-import qualified Data.Vector          as V
-import qualified Data.Vector.Mutable  as VM
-import qualified Data.HashSet         as HS
+  ( rasterTriangle
+  , rasterTriangleFaster
+  , flexmicroToANG
+  , getGrainMeshAndProp
+  , isInsideTriangle
+  ) where
 
 import Data.Vector (Vector)
 import Data.Maybe (fromMaybe)
 import Data.List
 import Data.Function
-
-import File.ANGReader
-import Texture.Orientation
-import Hammer.Math.Algebra
-import Hammer.MicroGraph
 import DeUni.Dim2.Base2D
 import DeUni.Types
+import File.ANGReader
+import Hammer.MicroGraph
+import Linear.Vect
+import Texture.Orientation
+import qualified Data.Vector          as V
+import qualified Data.Vector.Mutable  as VM
+import qualified Data.HashSet         as HS
 
 import VirMat.Core.FlexMicro
-
-import Debug.Trace
-dbg a = trace (show a) a
 
 -- =============================== tools for ANG's grid ==================================
 
@@ -53,7 +47,7 @@ toLinPos g = \(y, x) -> y * nx + x
   where (_, nx, _) = rowCols g
 
 -- | Calculate a square grid with same step size in both directions.
-calculateGrid :: Double -> Box Point2D -> ANGgrid
+calculateGrid :: Double -> Box Vec2 -> ANGgrid
 calculateGrid step box = let
   dx = xMax2D box - xMin2D box
   dy = yMax2D box - yMin2D box
@@ -68,7 +62,7 @@ calculateGrid step box = let
 
 -- ================================= Fast rasterization ==================================
 
-getSegSlope :: Vec2 -> Vec2 -> Double
+getSegSlope :: Vec2D -> Vec2D -> Double
 getSegSlope (Vec2 v1x v1y) (Vec2 v2x v2y) = (v2x - v1x) / (v2y - v1y)
 
 -- | Fill row between two points.
@@ -79,13 +73,13 @@ fillRow g yline xstart xfinal = let
   in [(x, yline) | x <- [min xs xf .. max xs xf]]
 
 -- | Get range of row (starting row, number of rows)
-getRowsRange :: ANGgrid -> Vec2 -> Vec2 -> (Int, Int)
+getRowsRange :: ANGgrid -> Vec2D -> Vec2D -> (Int, Int)
 getRowsRange g (Vec2 _ v1y) (Vec2 _ v2y) = (ya, abs $ yb - ya)
   where
     ya = snd $ toGrid g (undefined, v1y)
     yb = snd $ toGrid g (undefined, v2y)
 
-fillBottomFlatTriangle :: ANGgrid -> Vec2 -> Vec2 -> Vec2 -> [(Int, Int)]
+fillBottomFlatTriangle :: ANGgrid -> Vec2D -> Vec2D -> Vec2D -> [(Int, Int)]
 fillBottomFlatTriangle g p1 p2 p3 = let
   m1 = getSegSlope p1 p2
   m2 = getSegSlope p1 p3
@@ -94,7 +88,7 @@ fillBottomFlatTriangle g p1 p2 p3 = let
   func i = fillRow g (ya+i) (v1x + m1* fromIntegral i) (v1x + m2 * fromIntegral i)
   in concatMap func [0 .. n]
 
-fillTopFlatTriangle :: ANGgrid -> Vec2 -> Vec2 -> Vec2 -> [(Int, Int)]
+fillTopFlatTriangle :: ANGgrid -> Vec2D -> Vec2D -> Vec2D -> [(Int, Int)]
 fillTopFlatTriangle g p1 p2 p3 = let
   m1 = getSegSlope p3 p1
   m2 = getSegSlope p3 p2
@@ -105,7 +99,7 @@ fillTopFlatTriangle g p1 p2 p3 = let
 
 -- | Fast rasterization algorithm for filled triangles. Splits the triangle, if it is
 -- necessary, in two: one bottom-flat and one top-flat. Then fill both triangles row-by-row.
-rasterTriangleFaster :: ANGgrid -> Vec2 -> Vec2 -> Vec2 -> [(Int, Int)]
+rasterTriangleFaster :: ANGgrid -> Vec2D -> Vec2D -> Vec2D -> [(Int, Int)]
 rasterTriangleFaster g p1 p2 p3
   -- in case of bottomflat triangle
   | v2y == v3y = fillBottomFlatTriangle g v1 v2 v3
@@ -125,30 +119,30 @@ rasterTriangleFaster g p1 p2 p3
 
 -- ================================ Simple rasterization =================================
 
-boundingBox :: ANGgrid -> Vec2 -> Vec2 -> Vec2 -> ((Int, Int), (Int, Int))
+boundingBox :: ANGgrid -> Vec2D -> Vec2D -> Vec2D -> ((Int, Int), (Int, Int))
 boundingBox g (Vec2 ax ay) (Vec2 bx by) (Vec2 cx cy) = let
   ur = toGrid g (max (max ax bx) cx, max (max ay by) cy)
   ll = toGrid g (min (min ax bx) cx, min (min ay by) cy)
   in (ll, ur)
 
-crossProduct :: Vec2 -> Vec2 -> Double
+crossProduct :: Vec2D -> Vec2D -> Double
 crossProduct (Vec2 ax ay) (Vec2 bx by) = ax*by - ay*bx
 
 -- | Simple algorithm for filled triangle's rasterization but the not the fastest. Test
 -- which nodes are inside the given triangle. Optimized by testing only the nodes from an
 -- bounding box. Note that ratio area (triangle) / area (box) determines the efficiency of
 -- this algorithm and the best case is 0.5 (50%).
-rasterTriangle :: ANGgrid -> Vec2 -> Vec2 -> Vec2 -> [(Int, Int)]
+rasterTriangle :: ANGgrid -> Vec2D -> Vec2D -> Vec2D -> [(Int, Int)]
 rasterTriangle g p1 p2 p3 = let
   ((llx,lly), (urx, ury)) = boundingBox g p1 p2 p3
   mesh = [(i, j) | i <- [llx..urx], j <- [lly..ury]]
   -- using memorization of "isInsideTriangle p1 p2 p3"
-  func = isInsideTriangle (p1, p2, p3) . (\(x, y) -> Vec2 x y) . fromGrid g
+  func = isInsideTriangle (p1, p2, p3) . mkVec2 . fromGrid g
   in filter func mesh
 
 -- | Test if point is inside the triangle. It has memorization on the first parameter
 -- (triangle) therefore call it with partial application.
-isInsideTriangle :: (Vec2, Vec2, Vec2) -> Vec2 -> Bool
+isInsideTriangle :: (Vec2D, Vec2D, Vec2D) -> Vec2D -> Bool
 isInsideTriangle (p1, p2, p3 )= let
   -- memorization
   vs1 = p2 &- p1
@@ -217,7 +211,7 @@ mkBackground g = let
   in V.generate (ny*nx) (nullPoint . toXY)
 
 -- | Hold the whole ANG data strcuture
-angInit :: Double -> Box Point2D -> ANGdata
+angInit :: Double -> Box Vec2 -> ANGdata
 angInit step box = let
   ginfo = calculateGrid step box
   in ANGdata
@@ -229,7 +223,7 @@ angInit step box = let
 
 -- ================================== Raster FlexMicro ===================================
 
-getGrainMesh :: HS.HashSet FaceID -> Int -> FlexMicro Vec2 a -> Maybe (Vector Vec2, Vector (Int, Int, Int))
+getGrainMesh :: HS.HashSet FaceID -> Int -> FlexMicro Vec2 a -> Maybe (Vector Vec2D, Vector (Int, Int, Int))
 getGrainMesh fs n FlexMicro2D{..} = let
   func acc fid = maybe acc (V.snoc acc) (getPropValue =<< getFaceProp fid flexGraph2D)
   es = HS.foldl' func V.empty fs
@@ -237,7 +231,7 @@ getGrainMesh fs n FlexMicro2D{..} = let
 
 -- | Extract the grain's value and its triangular mesh with a given level of subdivision.
 -- INPUT: grain ID, level of mesh subdivision, microstructure. OUTPUT: (nodes, triangles, property)  
-getGrainMeshAndProp :: GrainID -> Int -> FlexMicro Vec2 g -> Maybe (Vector Vec2, Vector (Int, Int, Int), g)
+getGrainMeshAndProp :: GrainID -> Int -> FlexMicro Vec2 g -> Maybe (Vector Vec2D, Vector (Int, Int, Int), g)
 getGrainMeshAndProp gid n fm@FlexMicro2D{..} = do
   (prop, grainConn) <- getPropBoth =<< getGrainProp gid flexGraph2D
   (ps, ts)          <- getGrainMesh grainConn n fm
@@ -245,7 +239,7 @@ getGrainMeshAndProp gid n fm@FlexMicro2D{..} = do
 
 -- | Transform a microstructure to ANG using raster algorithm. INPUT: level of subdivision,
 -- step size, bounding box, microstructure. OUTPUT: ANG data structure
-flexmicroToANG :: Int -> Double -> Box Point2D -> FlexMicro Vec2 Quaternion -> ANGdata
+flexmicroToANG :: Int -> Double -> Box Vec2 -> FlexMicro Vec2 Quaternion -> ANGdata
 flexmicroToANG n step box fm@FlexMicro2D{..} = let
   a0 = angInit step box
   gs = getGrainIDList flexGraph2D
@@ -273,5 +267,3 @@ test = let
                          in VM.write m pos (mkPoint zerorot 1 xy 1)
                  ) xys
   in a0 {nodes = V.modify func (nodes a0)}
-{--
---}

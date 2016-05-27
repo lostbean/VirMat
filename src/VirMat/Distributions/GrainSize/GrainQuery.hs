@@ -1,11 +1,8 @@
 {-# LANGUAGE
-    TypeSynonymInstances
-  , FlexibleInstances
-  , FlexibleContexts
-  , BangPatterns
-  , FlexibleContexts
+    FlexibleContexts
   , RecordWildCards
   , GeneralizedNewtypeDeriving
+  , TypeFamilies
   #-}
 
 module VirMat.Distributions.GrainSize.GrainQuery
@@ -22,17 +19,15 @@ module VirMat.Distributions.GrainSize.GrainQuery
   , add2DGrainMorph
   ) where
 
+import Data.Vector (Vector)
+import Data.Maybe  (mapMaybe)
+import Linear.Vect
+import Hammer.MicroGraph
+import SubZero
 import qualified Data.Vector  as V
 import qualified Data.HashSet as HS
 
-import           Data.Vector   (Vector)
-import           Data.Maybe    (mapMaybe)
-
-import           Hammer.Math.Algebra
-import           Hammer.MicroGraph
-import           SubZero
-
-import           VirMat.Core.FlexMicro
+import VirMat.Core.FlexMicro
 
 newtype Length = Length
   { getLength :: Double
@@ -55,16 +50,7 @@ data GrainMorph v
   , grainNeighbors :: Int
   } deriving (Show)
 
-nullmorph :: (AbelianGroup v)=> GrainMorph v
-nullmorph = GrainMorph
-  { grainCenter    = zero
-  , grainLength    = 0
-  , grainArea      = 0
-  , grainVolume    = 0
-  , grainNeighbors = 0
-  }
-
-add2DGrainMorph :: Int -> FlexMicro Vec2 a -> FlexMicro Vec2 (GrainMorph Vec2, a)
+add2DGrainMorph :: Int -> FlexMicro Vec2 a -> FlexMicro Vec2 (GrainMorph Vec2D, a)
 add2DGrainMorph n fm@FlexMicro2D{..} = modifyGrainProps func fm
   where
     func gid prop = case prop of
@@ -84,7 +70,7 @@ add2DGrainMorph n fm@FlexMicro2D{..} = modifyGrainProps func fm
          , grainNeighbors = HS.size fs
          }
 
-add3DGrainMorph :: Int -> FlexMicro Vec3 a -> FlexMicro Vec3 (GrainMorph Vec3, a)
+add3DGrainMorph :: Int -> FlexMicro Vec3 a -> FlexMicro Vec3 (GrainMorph Vec3D, a)
 add3DGrainMorph n fm@FlexMicro3D{..} = modifyGrainProps func fm
   where
     func gid prop = case prop of
@@ -106,14 +92,14 @@ add3DGrainMorph n fm@FlexMicro3D{..} = modifyGrainProps func fm
 
 -- =======================================================================================
 
-calc2DGrainLength :: (AbelianGroup v, DotProd v, SubZero (SubOne v))=>
-                     Vector v -> Vector (Vector Int) -> Int -> Length
+calc2DGrainLength :: (AbelianGroup v, DotProd Double m, Norm Double m, SubZero (SubOne v), v ~ m Double)
+                  => Vector v -> Vector (Vector Int) -> Int -> Length
 calc2DGrainLength vs vmesh n = V.foldl' (\acc m -> acc + calcSubOneLength vs m n) 0 vmesh
 
-calc2DGrainArea :: Vec2 -> Vector Vec2 -> Vector (Vector Int) -> Int -> Area
+calc2DGrainArea :: Vec2D -> Vector Vec2D -> Vector (Vector Int) -> Int -> Area
 calc2DGrainArea = calcSubOneArea
 
-calc2DGrainCenter :: Vector Vec2 -> Vector (Vector Int) -> Int -> Vec2
+calc2DGrainCenter :: Vector Vec2D -> Vector (Vector Int) -> Int -> Vec2D
 calc2DGrainCenter vs vmesh n
   | V.null vmesh = zero
   | otherwise    = (1/l) *& V.foldl' func zero vmesh
@@ -123,14 +109,14 @@ calc2DGrainCenter vs vmesh n
 
 -- =======================================================================================
 
-calc3DGrainArea :: Vector Vec3 -> Vector MeshConn -> Int -> Area
+calc3DGrainArea :: Vector Vec3D -> Vector MeshConn -> Int -> Area
 calc3DGrainArea vs vmesh n = V.foldl' (\acc m -> acc + calcSubTwoArea vs m n) 0 vmesh
 
-calc3DGrainVolume :: Vec3 -> Vector Vec3 -> Vector MeshConn -> Int -> Volume
+calc3DGrainVolume :: Vec3D -> Vector Vec3D -> Vector MeshConn -> Int -> Volume
 calc3DGrainVolume d vs vmesh n = V.foldl' func 0 vmesh
   where func acc m = acc + calcSubTwoVolume d vs m n
 
-calc3DGrainCenter :: Vector Vec3 -> Vector MeshConn -> Int -> Vec3
+calc3DGrainCenter :: Vector Vec3D -> Vector MeshConn -> Int -> Vec3D
 calc3DGrainCenter vs vmesh n
   | V.null vmesh = zero
   | otherwise    = (1/l) *& V.foldl' func zero vmesh
@@ -140,8 +126,8 @@ calc3DGrainCenter vs vmesh n
 
 -- =======================================================================================
 
-calcCentroidSubOne :: (SubZero (SubOne v), MultiVec v)=>
-                      Vector v -> Vector Int -> Int -> v
+calcCentroidSubOne :: (SubZero (SubOne v), LinearMap Double m, v ~ m Double)
+                   => Vector v -> Vector Int -> Int -> v
 calcCentroidSubOne vs vi n = maybe zero func (mkSubOne vi vs)
   where
     func sb = let
@@ -149,21 +135,21 @@ calcCentroidSubOne vs vi n = maybe zero func (mkSubOne vi vs)
       ps  = subOnePoints sbN
       in getCentroid ps
 
-calcCentroidSubTwo :: Vector Vec3 -> MeshConn -> Int -> Vec3
+calcCentroidSubTwo :: Vector Vec3D -> MeshConn -> Int -> Vec3D
 calcCentroidSubTwo vs mesh n = let
   sb  = mkSubTwoFromMesh vs mesh
   sbN = subdivideN n sb
   ps  = subTwoPoints sbN
   in getCentroid ps
 
-calcSubTwoArea :: Vector Vec3 -> MeshConn -> Int -> Area
+calcSubTwoArea :: Vector Vec3D -> MeshConn -> Int -> Area
 calcSubTwoArea = withSubTwoTriangles (\acc a b c -> acc + triangleArea a b c) 0
 
-calcSubTwoVolume :: Vec3 -> Vector Vec3 -> MeshConn -> Int -> Volume
+calcSubTwoVolume :: Vec3D -> Vector Vec3D -> MeshConn -> Int -> Volume
 calcSubTwoVolume d = withSubTwoTriangles (\acc a b c -> acc + tetrahedronVolume a b c d) 0
 
-calcSubOneLength :: (AbelianGroup v, DotProd v, SubZero (SubOne v))=>
-                    Vector v -> Vector Int -> Int -> Length
+calcSubOneLength :: (AbelianGroup v, DotProd Double m, Norm Double m, SubZero (SubOne v), v ~ m Double)
+                 => Vector v -> Vector Int -> Int -> Length
 calcSubOneLength vs vi n = Length $ maybe 0 func (mkSubOne vi vs)
   where
     func sb = let
@@ -173,7 +159,7 @@ calcSubOneLength vs vi n = Length $ maybe 0 func (mkSubOne vi vs)
       -- ps > 2 guaranteed by 'mkSubOne'
       in fst $ V.foldl' foo (0, V.head ps) (V.tail ps)
 
-calcSubOneArea :: Vec2 -> Vector Vec2 -> Vector (Vector Int) -> Int -> Area
+calcSubOneArea :: Vec2D -> Vector Vec2D -> Vector (Vector Int) -> Int -> Area
 calcSubOneArea center vs vvi n = V.foldl' (\acc vi -> acc + foo vi) 0 vvi
   where
     foo vi = maybe 0 func (mkSubOne vi vs)
@@ -184,7 +170,7 @@ calcSubOneArea center vs vvi n = V.foldl' (\acc vi -> acc + foo vi) 0 vvi
       -- ps > 2 guaranteed by 'mkSubOne'
       in fst $ V.foldl' f (0, V.head ps) (V.tail ps)
 
-withSubTwoTriangles :: (a -> Vec3 -> Vec3 -> Vec3 -> a) -> a -> Vector Vec3 -> MeshConn -> Int -> a
+withSubTwoTriangles :: (a -> Vec3D -> Vec3D -> Vec3D -> a) -> a -> Vector Vec3D -> MeshConn -> Int -> a
 withSubTwoTriangles func x0 vs mesh n = let
   sb  = mkSubTwoFromMesh vs mesh
   sbN = subdivideN n sb
@@ -194,7 +180,7 @@ withSubTwoTriangles func x0 vs mesh n = let
 
 -- =======================================================================================
 
-triangleArea :: (AbelianGroup a, DotProd a)=> a -> a -> a -> Area
+triangleArea :: (AbelianGroup v, DotProd Double m, v ~ m Double)=> v -> v -> v -> Area
 triangleArea a b c = let
   ca = a &- c
   cb = b &- c
@@ -202,15 +188,15 @@ triangleArea a b c = let
   x   = normsqr cb * normsqr ca - dot * dot
   in Area (0.5 * sqrt x)
 
-tetrahedronVolume :: Vec3 -> Vec3 -> Vec3 -> Vec3 -> Volume
+tetrahedronVolume :: Vec3D -> Vec3D -> Vec3D -> Vec3D -> Volume
 tetrahedronVolume a b c d = Volume $ abs $ ((a &- d) &. ((b &- d) &^ (c &- d))) / 6
 
-getCentroid :: (AbelianGroup a, MultiVec a)=> Vector a -> a
-getCentroid v = (V.foldl' (&+) zero v) &* k
-  where k = 1 / fromIntegral (V.length v)
+getCentroid :: (Fractional a, AbelianGroup (v a), LinearMap a v)=> Vector (v a) -> v a
+getCentroid v = V.foldl' (&+) zero v &* k
+  where k = recip . fromIntegral . V.length $ v
 
 {--  Unused but useful functions 
-triangleNormal :: (AbelianGroup a, DotProd a, CrossProd a, MultiVec a)=> a -> a -> a -> a
+triangleNormal :: (AbelianGroup a, DotProd a, CrossProd a, LinearMap a)=> a -> a -> a -> a
 triangleNormal a b c = let
   ca = a &- c
   cb = b &- c

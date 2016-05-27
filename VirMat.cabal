@@ -66,6 +66,7 @@ library
                       , random-fu              >= 0.2
                       , transformers           >= 0.3
                       , mtl                    >= 2.1
+                      , linear-vect            >= 0.2
 
     Exposed-modules:    VirMat.Run2D
                         VirMat.Run3D

@@ -1,33 +1,30 @@
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE BangPatterns         #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleContexts     #-}
-
+{-# LANGUAGE
+  RecordWildCards
+  , BangPatterns
+  , TypeSynonymInstances
+  , FlexibleContexts
+  #-}
 module VirMat.Core.Packer
-       ( runPacker
-       , runPacker2D
-       , setForce
-       , setDisp
-       ) where
+  ( runPacker
+  , runPacker2D
+  , setForce
+  , setDisp
+  ) where
 
+import Data.List   (foldl')
+import Data.IntMap (IntMap)
+import Data.IntSet (IntSet)
+import Data.Vector (Vector, (!))
+import Linear.Vect
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Vector as V
 
-import           Data.IntMap (IntMap)
-import           Data.Vector (Vector, (!))
-import           Data.List   (foldl',sortBy)
-import           Data.IntSet (IntSet)
+import DeUni.DeWall
+import Hammer.VTK
 
-import           DeUni.DeWall
-import           Hammer.Math.Algebra
-import           Hammer.VTK
-
-import           Debug.Trace (trace)
-
-
-runPacker :: (Packer a, Buildable S2 a, Show(Box a))=> Int -> Box a -> SetPoint a
-          -> IntMap (S2 a) -> (SetPoint a, IntMap (S2 a))
+runPacker :: (Packer v, Buildable S2 v, Norm Double v)
+          => Int -> Box v -> SetPoint v -> IntMap (S2 v) -> (SetPoint v, IntMap (S2 v))
 runPacker n box ps wall = let
   interDeUni = 2
   smooth     = 15
@@ -35,54 +32,23 @@ runPacker n box ps wall = let
   (_, arrF1, wallF1) = foldl' pack (ps, ps, wall) [1..n]
 
   pack (!ps0,!ps1,!wall1) i = let
-    time      = trace ("time " ++ show i ++ " = ") $
-                if i > smooth
-                then 0.2
-                else 0.2 * (fromIntegral i) / 15
-    ps2       = updateSP box wall1 ps0 ps1 0.6 time
-    len2      = V.length ps2
-    psID2     = [0 .. len2-1]
-    (wall2,_) = if (i > smooth) && (rem i interDeUni /= 0)
-                then (wall1, undefined)
-                else trace "triangulate" $ runDelaunay box ps2 psID2
+    ps2   = updateSP box wall1 ps0 ps1 0.6 time
+    len2  = V.length ps2
+    psID2 = [0 .. len2 - 1]
+    time
+      | i > smooth = 0.2
+      | otherwise  = 0.2 * fromIntegral i / 15
+    wall2
+      | i > smooth && (rem i interDeUni /= 0) = wall1
+      | otherwise                             = fst $ runDelaunay box ps2 psID2
     in (ps1,ps2,wall2)
 
   in (arrF1, wallF1)
 
-runPacker2D :: Int -> Box Point2D -> SetPoint Point2D -> IntMap (S2 Point2D)
-            -> (SetPoint Point2D, IntMap (S2 Point2D))
-runPacker2D n box ps wall = let
-  interDeUni = 2
-  smooth     = 15
+runPacker2D :: Int -> Box Vec2 -> SetPoint Vec2 -> IntMap (S2 Vec2) -> (SetPoint Vec2, IntMap (S2 Vec2))
+runPacker2D = runPacker
 
-  (_, arrF1, wallF1) = foldl' pack (ps, ps, wall) [1..n]
-
-  pack (!ps0,!ps1,!wall1) i = let
-    time      = trace ("time " ++ show i ++ " = ") $
-                if i > smooth then 0.2 else 0.2 -- + 0.2 * (1 - (fromIntegral i) / (fromIntegral smooth))
-    ps2       = updateSP box wall1 ps0 ps1 0.6 time
-    len2      = V.length ps2
-    psID2     = [0 .. len2-1]
-    (wall2,_) = if (i > smooth) && (rem i interDeUni /= 0)
-                then (wall1, undefined)
-                else trace "dela" $ runDelaunay box ps2 psID2
-    in (ps1,ps2,wall2)
-
-  in (arrF1, wallF1)
-
-sortGroup :: (Ord a) => [(a, b)] -> [(a, [b])]
-sortGroup = let
-  comp a b = compare (fst a) (fst b)
-
-  groupOrd [] = []
-  groupOrd ls@(x:_) = let
-    (store, rest) = span (\a -> fst x == fst a) ls
-    in (fst x, map snd store):groupOrd rest
-
-  in groupOrd.(sortBy comp)
-
-
-force :: (Packer a, Show a)=> WPoint a -> WPoint a -> a
+force :: (Packer v, Norm Double v) => WPoint v -> WPoint v -> v Double
 force ref x
   | freeDist <= 0 = let
     f = 4 * freeDist
@@ -99,21 +65,21 @@ force ref x
     totalR   = radius x + radius ref
     freeDist = ldelta - totalR
 
-evalForce :: (Packer a, Show a)=> SetPoint a -> PointPointer -> IntSet -> a
+evalForce :: (Packer v, Norm Double v) => SetPoint v -> PointPointer -> IntSet -> v Double
 evalForce sp a ns = let
-  func acc x = acc &+ force (sp!a) (sp!x)
+  func acc x = acc &+ force (sp ! a) (sp ! x)
   f          = IS.foldl' func zero ns
-  in f &* (1/(radius $ sp!a))
+  in f &* (1 / radius (sp ! a))
 
-setForce :: (Packer a)=> IntMap (S2 a) -> SetPoint a -> Vector (Vector a)
+setForce :: (Packer v, Norm Double v) => IntMap (S2 v) -> SetPoint v -> Vector (Vector (v Double))
 setForce tri sp = let
   conn     = findPointConn tri
   update i = case IM.lookup i conn of
     Just ps -> V.map (\n -> force (sp!i) (sp!n)) . V.fromList . IS.toList $ ps  -- evalForce sp i ps
-    _       -> V.empty                                                            -- zero
+    _       -> V.empty                                                          -- zero
   in V.generate (V.length sp) update
 
-setDisp :: (Packer a)=> IntMap (S2 a) -> SetPoint a -> Vector a
+setDisp :: (Packer v, Norm Double v) => IntMap (S2 v) -> SetPoint v -> Vector (v Double)
 setDisp tri sp = let
   conn     = findPointConn tri
   update i = case IM.lookup i conn of
@@ -121,18 +87,18 @@ setDisp tri sp = let
     _       -> zero
   in V.generate (V.length sp) update
 
-getDisplacement :: (Packer a)=> SetPoint a -> Int -> IntSet -> Double -> a
+getDisplacement :: (Packer v, Norm Double v) => SetPoint v -> Int -> IntSet -> Double -> v Double
 getDisplacement sp i ps time = let
   a    = evalForce sp i ps
   disp = a &* (time*time)
-  l    = len disp
+  l    = vlen disp
   r    = radius $ sp!i
   -- cut-off displacements bigger than 2*r. It avoids multiple sphere
   -- overlaping on the coners due "keepInBox" restriction
   in if l > 0.5*r then disp &* (0.5*r/l) else disp
 
-updateSP :: (Packer a)=> Box a -> IntMap (S2 a) -> SetPoint a -> SetPoint a
-         -> Double -> Double -> SetPoint a
+updateSP :: (Packer v, Norm Double v) => Box v -> IntMap (S2 v) -> SetPoint v -> SetPoint v
+         -> Double -> Double -> SetPoint v
 updateSP box tri sp0 sp1 damp time = let
   conn     = findPointConn tri
   update i = let
@@ -144,17 +110,16 @@ updateSP box tri sp0 sp1 damp time = let
       newP     = ((2-damp) *& p1) &- ((1-damp) *& p0) &+ deltaPos
       in keepInBox box newP
     in case IM.lookup i conn of
-      Just ps -> (sp1!i) {point = new ps}
-      _       -> (sp1!i)
+      Just ps -> (sp1 ! i) {point = new ps}
+      _       ->  sp1 ! i
   in V.generate (V.length sp1) update
 
+class (PointND v)=> Packer v where
+  findPointConn :: IntMap (S2 v) -> IntMap IntSet
+  keepInBox     :: Box v -> v Double -> v Double
 
 
-class (PointND a)=> Packer a where
-  findPointConn :: IntMap (S2 a) -> IntMap IntSet
-  keepInBox     :: Box a -> a -> a
-
-instance Packer Point2D where
+instance Packer Vec2 where
   findPointConn = let
     func acc x = let
       (a, b, c) = face2DPoints x
@@ -173,7 +138,7 @@ instance Packer Point2D where
     in (Vec2 newX newY)
 
 
-instance Packer Point3D where
+instance Packer Vec3 where
   findPointConn = let
     func acc x = let
       (a, b, c, d) = tetraPoints x
@@ -195,10 +160,11 @@ instance Packer Point3D where
     in (Vec3 newX newY newZ)
 
 -- ============================= Testing ================================
+
 testForce :: [Double] -> [Double]
 testForce = map (norm . force (WPoint 1 (Vec2 0 0)) . WPoint 5 . Vec2 0.1)
 
-icosahedron :: Double -> Point3D -> (Vector Point3D, Vector (Int, Int, Int))
+icosahedron :: Double -> Vec3D -> (Vector Vec3D, Vector (Int, Int, Int))
 icosahedron r pos = let
   t = (1 + sqrt 5) / 2   -- golden ratio
   k = 1 / sqrt (1 + t*t) -- correct the radius. For (0, 1, phi) the edge
@@ -213,7 +179,7 @@ icosahedron r pos = let
                         , (8, 6, 4), (9, 4, 6), (10, 5, 7), (11, 7, 5) ]
   in (V.map ((pos &+) . (r * k *&) . (\(x,y,z) -> Vec3 x y z)) points, tri)
 
-writeWPointsVTKfile :: String -> SetPoint Point3D -> IO ()
+writeWPointsVTKfile :: String -> SetPoint Vec3 -> IO ()
 writeWPointsVTKfile file points = let
   vtks = V.imap foo points
   foo nid x = let

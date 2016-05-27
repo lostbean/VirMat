@@ -1,25 +1,23 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TypeFamilies #-}
-
+{-# LANGUAGE
+    FlexibleInstances
+  , FlexibleContexts
+  , UndecidableInstances
+  , TypeFamilies
+  #-}
 module VirMat.Core.VoronoiMicro
   ( mkVoronoiMicro
   , VoronoiMicro
   ) where
 
+
+import Data.IntMap (IntMap)
+import Hammer.MicroGraph
+import Linear.Vect
 import qualified Data.IntMap as IM
 
-import           Data.IntMap   (IntMap)
-
-import           Hammer.Math.Algebra
-import           Hammer.MicroGraph
-
-import           DeUni.Dim3.Base3D (tetraPoints)
-import           DeUni.Dim2.Base2D (face2DPoints)
-import           DeUni.Types
-
---import Debug.Trace (trace)
+import DeUni.Dim2.Base2D (face2DPoints)
+import DeUni.Dim3.Base3D (tetraPoints)
+import DeUni.Types
 
 class VoronoiMicroBuilder v where
   type VoronoiMicro v
@@ -28,8 +26,7 @@ class VoronoiMicroBuilder v where
 -- =======================================================================================
 
 instance VoronoiMicroBuilder Vec3 where
-  type VoronoiMicro Vec3 = MicroGraph () () () Vec3
-  --mkVoronoiMicro :: IntMap (S2 Vec3) -> VoronoiMicro3D
+  type VoronoiMicro Vec3 = MicroGraph () () () Vec3D
   mkVoronoiMicro = IM.foldl' (flip addS2) initMicroGraph
 
 addS2 :: S2 Vec3 -> VoronoiMicro Vec3 -> VoronoiMicro Vec3
@@ -69,8 +66,7 @@ addS2 s2 = let
 -- =======================================================================================
 
 instance VoronoiMicroBuilder Vec2 where
-  type VoronoiMicro Vec2 = MicroGraph () () Vec2 ()
-  --mkVoronoiMicro2D :: IntMap (S2 Vec2) -> VoronoiMicro2D
+  type VoronoiMicro Vec2 = MicroGraph () () Vec2D ()
   mkVoronoiMicro = IM.foldl' (flip addS22D) initMicroGraph
 
 addS22D :: S2 Vec2 -> VoronoiMicro Vec2 -> VoronoiMicro Vec2

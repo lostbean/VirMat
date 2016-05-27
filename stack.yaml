@@ -9,6 +9,7 @@ packages:
 - packages/mcl/
 - packages/SubZero/
 - packages/VTK/
+- packages/linear-vect/
 
 extra-deps: []
 flags: {}

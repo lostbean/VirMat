@@ -19,3 +19,6 @@
 [submodule "packages/mcl"]
 	path = packages/mcl
 	url = git@github.com:lostbean/mcl.git
+[submodule "packages/linear-vect"]
+	path = packages/linear-vect
+	url = https://github.com/capsjac/linear-vect.git

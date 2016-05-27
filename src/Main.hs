@@ -4,7 +4,7 @@ module Main where
 
 import Hammer.VTK (writeMultiVTKfile)
 
-import Hammer.Math.Algebra
+import Linear.Vect
 import Texture.Bingham
 import Texture.Orientation
 import Texture.Symmetry

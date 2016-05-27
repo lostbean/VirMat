@@ -1,22 +1,21 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module VirMat.PhaseTrans
-       ( generateANG
-       ) where
-
-import qualified Data.Vector as V
-import qualified Data.List   as L
-import qualified Data.IntMap as IM
-
-import Data.Maybe (fromMaybe)
-import Hammer.VTK (writeMultiVTKfile)
+  ( PhaseTransformation (..)
+  , generateANG
+  , generateTransformation
+  ) where
 
 import DeUni.Types
 import File.ANGReader
-import Hammer.Math.Algebra
 import Hammer.MicroGraph
-import Texture.Orientation
+import Hammer.VTK (writeMultiVTKfile)
+import Linear.Vect
 import Texture.Bingham
+import Texture.Orientation
+import qualified Data.Vector as V
+import qualified Data.List   as L
+import qualified Data.IntMap as IM
 
 import VirMat.Core.FlexMicro
 import VirMat.Distributions.Texture.ODFSampling
@@ -26,9 +25,15 @@ import VirMat.Types
 import VirMat.Run2D
 import VirMat.Core.Sampling
 
+data PhaseTransformation g
+  = PhaseTransformation
+  { microParent  :: FlexMicro Vec2 g
+  , microProduct :: FlexMicro Vec2 g
+  }
+
 -- | Generate an ANG file with rasterization algorithm. Input: step size, simulation in 2D.
 -- Output: square mode ANG.
-generateANG :: Double -> Simulation Point2D -> IO ANGdata
+generateANG :: Double -> Simulation Vec2 -> IO ANGdata
 generateANG step Simulation{..} = let
   fm :: FlexMicro Vec2 ()
   fm = mkFlexMicro grainSet
@@ -40,22 +45,18 @@ generateANG step Simulation{..} = let
     fmTex <- addMicroFlexTexture dist fm
     return $ flexmicroToANG 0 step box fmTex
 
-generateTransformation :: JobRequest -> IO () -- (FlexMicro Vec2 ())
+generateTransformation :: JobRequest -> IO (PhaseTransformation GrainID)
 generateTransformation job = do
   simParent  <- runVirMat2D job
   simProduct <- runVirMat2D (job {gsDist = modDist 10})
   let
     microParent  = modifyGrainProps (\gid _ -> gid) $ mkFlexMicro (grainSet simParent)
-    microProduct :: FlexMicro Vec2 ()
-    microProduct = mkFlexMicro (grainSet simProduct)
-    mod = getParentProp 0 microParent simProduct
-    microProduct2 = applyParentProp simProduct (mkGrainID (-1)) mod
-  --return microProduct
-  let dir = "/Users/edgar/Desktop/"
-      showTex = RenderGrainProp ("Value", \_ x -> fmap unGrainID x)
-  writeMultiVTKfile (dir ++ "virmat-parent.vtu") True $ renderFlexMicro [showGrainID, showTex] 1 microParent
-  writeMultiVTKfile (dir ++ "virmat-product.vtu") True $ renderFlexMicro [showGrainID] 1 microProduct
-  writeMultiVTKfile (dir ++ "virmat-product2.vtu") True $ renderFlexMicro [showGrainID, showTex] 1 microProduct2
+    parentProps  = getParentProp 0 microParent simProduct
+    microProduct = applyParentProp simProduct (mkGrainID (-1)) parentProps
+  return PhaseTransformation
+    { microParent  = microParent
+    , microProduct = microProduct
+    }
 
 applyParentProp :: Simulation Vec2 -> g -> [(Int, g)] -> FlexMicro Vec2 g
 applyParentProp simProduct nullprop props = let
@@ -77,7 +78,9 @@ getParentProp n microParent simProduct = let
     _ -> acc
   in L.foldl' filterInsideGrain [] gs
 
+-- ================================================================================
 
+testJob :: JobRequest
 testJob = VoronoiJob
   { dimension    = Dimension2D
   , distrType    = RandomDistribution
@@ -86,10 +89,21 @@ testJob = VoronoiJob
   , output       = Output "" "" []
   }
 
+modDist :: Double -> [CombDist]
 modDist k = [CombDist $ distJob {normalMean = 5 / k}]
 
+distJob :: Normal
 distJob = Normal
   { normalScale = 1
   , normalMean  = 5
   , normalVar   = 1
   }
+
+runTest :: JobRequest -> IO ()
+runTest job = do
+  sim <- generateTransformation job
+  let
+    dir = "/Users/edgar/Desktop/"
+    showTex = RenderGrainProp ("Value", \_ x -> fmap unGrainID x)
+  writeMultiVTKfile (dir ++ "virmat-parent.vtu"  ) True . renderFlexMicro [showGrainID, showTex] 1 . microParent  $ sim
+  writeMultiVTKfile (dir ++ "virmat-product2.vtu") True . renderFlexMicro [showGrainID, showTex] 1 . microProduct $ sim

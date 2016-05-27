@@ -1,38 +1,32 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
-
 module VirMat.Run2D
-       ( runVirMat2D
-       ) where
+  ( runVirMat2D
+  ) where
 
+import DeUni.DeWall
+import Linear.Vect
 import qualified Data.Vector as V
 import qualified Data.IntMap as IM
 
-import           DeUni.DeWall
-
-import           VirMat.Types
-import           VirMat.Core.VoronoiMicro
-import           VirMat.Core.Packer
-import           VirMat.Distributions.GrainSize.GrainDistributionGenerator
-import           VirMat.IO.Import.Types
-
---import           Debug.Trace
---debug  ::  Show a => String -> a -> a
---debug s x = trace (s ++ show x) x
+import VirMat.Types
+import VirMat.Core.VoronoiMicro
+import VirMat.Core.Packer
+import VirMat.Distributions.GrainSize.GrainDistributionGenerator
+import VirMat.IO.Import.Types
 
 -- ============================== 2D =====================================
 
-samplePoints :: JobRequest -> IO (DistributedPoints Point2D)
+samplePoints :: JobRequest -> IO (DistributedPoints Vec2)
 samplePoints VoronoiJob{..} = case structSize of
   NGrains n -> genGrainDistributionByNumber (1, 1) seed gsDist n
   SizeBox (x, y, _) -> let
     box = Box2D {xMax2D = x, xMin2D = 0, yMax2D = y, yMin2D = 0}
     in genGrainDistributionByBox seed gsDist box
 
-runVirMat2D :: JobRequest -> IO (Simulation Point2D)
-runVirMat2D job = genPoints job >>= return . buildMicro
+runVirMat2D :: JobRequest -> IO (Simulation Vec2)
+runVirMat2D job = buildMicro <$> genPoints job
 
-genPoints :: JobRequest -> IO (DistributedPoints Point2D)
+genPoints :: JobRequest -> IO (DistributedPoints Vec2)
 genPoints jobReq = case distrType jobReq of
   RandomDistribution       -> samplePoints jobReq
   PackedDistribution nstep -> do
@@ -44,7 +38,7 @@ genPoints jobReq = case distrType jobReq of
       (psFinal, _) = runPacker nstep box2D ps0 wall0
     return $ DistributedPoints box2D psFinal
 
-buildMicro :: DistributedPoints Point2D -> Simulation Point2D
+buildMicro :: DistributedPoints Vec2 -> Simulation Vec2
 buildMicro (DistributedPoints box2D ps) = let
   ls     = V.length ps
   psID   = [0 .. ls - 1]
@@ -55,8 +49,5 @@ buildMicro (DistributedPoints box2D ps) = let
                 , triangulation = wall
                 , grainSet      = grains }
 
-onlySimpleInBox2D :: Box Point2D -> IM.IntMap (S2 Point2D) -> IM.IntMap (S2 Point2D)
+onlySimpleInBox2D :: Box Vec2 -> IM.IntMap (S2 Vec2) -> IM.IntMap (S2 Vec2)
 onlySimpleInBox2D box = IM.filter (isInBox box . circleCenter)
-
---onlyDistInBox :: (PointND a)=> Box a -> SetPoint a -> SetPoint a
---onlyDistInBox box = V.filter (isInBox box . point)
