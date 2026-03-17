@@ -21,6 +21,7 @@ module VirMat.Distributions.GrainSize.GrainDistributionGenerator (
 ) where
 
 import Data.IORef
+import Data.Kind (Type)
 import Data.Random
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -38,8 +39,8 @@ data DistributedPoints a
     }
 
 class GenRandom v where
-    type Ratio v :: *
-    data Extent v :: *
+    type Ratio v :: Type
+    data Extent v :: Type
 
     -- | Bounding box ratio
     defRatio :: Ratio v

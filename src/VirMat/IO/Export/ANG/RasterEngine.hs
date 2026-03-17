@@ -16,7 +16,6 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as VM
 import DeUni.Dim2.Base2D
-import DeUni.Types
 import File.ANGReader
 import Hammer.MicroGraph
 import Linear.Vect
@@ -125,7 +124,9 @@ rasterTriangleFaster g p1 p2 p3
                 ++ fillTopFlatTriangle g v2 v4 v3
   where
     -- sort the vertices by y-coordinate, the v1 is the topmost vertice
-    [v1, v2, v3] = sortBy (compare `on` _2) [p1, p2, p3]
+    (v1, v2, v3) = case sortBy (compare `on` _2) [p1, p2, p3] of
+        [a, b, c] -> (a, b, c)
+        _ -> error "rasterTriangleFaster: unexpected number of vertices"
     Vec2 v1x v1y = v1
     Vec2 _ v2y = v2
     Vec2 v3x v3y = v3
@@ -292,26 +293,3 @@ flexmicroToANG n step box fm@FlexMicro2D{..} =
                 V.mapM_ fillTriangle ts
      in
         a0{nodes = V.modify (\m -> mapM_ (func m) gs) (nodes a0)}
-
--- ====================================== testing ========================================
-
-test :: ANGdata
-test =
-    let
-        step = 0.5
-        box = Box2D{xMax2D = 10, xMin2D = 0, yMax2D = 10, yMin2D = 0}
-
-        a0 = angInit step box
-
-        xys = rasterTriangle (grid a0) (Vec2 1 1.2) (Vec2 1.4 8) (Vec2 7.1 8.1)
-        func m =
-            mapM_
-                ( \xy ->
-                    let
-                        pos = toLinPos (grid a0) xy
-                     in
-                        VM.write m pos (mkPoint zerorot 1 xy 1)
-                )
-                xys
-     in
-        a0{nodes = V.modify func (nodes a0)}

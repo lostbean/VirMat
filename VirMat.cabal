@@ -19,7 +19,23 @@ flag generator
 executable virmatgen
   hs-source-dirs: src
   main-is:        Main.hs
-  ghc-options:    -Wall -O3 -threaded -rtsopts -auto-all -caf-all
+  ghc-options:    -Wall -O3 -threaded -rtsopts -fprof-auto -fprof-cafs
+  other-modules:
+    VirMat.Core.FlexMicro
+    VirMat.Core.Packer
+    VirMat.Core.Sampling
+    VirMat.Core.VoronoiMicro
+    VirMat.Distributions.GrainSize.GrainDistributionGenerator
+    VirMat.Distributions.GrainSize.GrainQuery
+    VirMat.Distributions.Texture.ODFSampling
+    VirMat.IO.Export.ANG.RasterEngine
+    VirMat.IO.Import.CommandLine
+    VirMat.IO.Import.Types
+    VirMat.PhaseTrans
+    VirMat.Run2D
+    VirMat.Run3D
+    VirMat.Types
+
   build-depends:
       base                    >=4    && <5
     , containers              >=0.5

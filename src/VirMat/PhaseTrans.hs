@@ -12,7 +12,6 @@ import qualified Data.Vector as V
 import DeUni.Types
 import File.ANGReader
 import Hammer.MicroGraph
-import Hammer.VTK (writeMultiVTKfile)
 import Linear.Vect
 import Texture.Bingham
 import Texture.Orientation
@@ -89,16 +88,6 @@ getParentProp n microParent simProduct =
 
 -- ================================================================================
 
-testJob :: JobRequest
-testJob =
-    VoronoiJob
-        { dimension = Dimension2D
-        , distrType = RandomDistribution
-        , gsDist = [CombDist distJob]
-        , seed = Just 10
-        , output = Output "" "" []
-        }
-
 modDist :: Double -> [CombDist]
 modDist k = [CombDist $ distJob{normalMean = 5 / k}]
 
@@ -109,12 +98,3 @@ distJob =
         , normalMean = 5
         , normalVar = 1
         }
-
-runTest :: JobRequest -> IO ()
-runTest job = do
-    sim <- generateTransformation job
-    let
-        dir = "/Users/edgar/Desktop/"
-        showTex = RenderGrainProp ("Value", \_ x -> fmap unGrainID x)
-    writeMultiVTKfile (dir ++ "virmat-parent.vtu") True . renderFlexMicro [showGrainID, showTex] 1 . microParent $ sim
-    writeMultiVTKfile (dir ++ "virmat-product2.vtu") True . renderFlexMicro [showGrainID, showTex] 1 . microProduct $ sim

@@ -25,6 +25,7 @@ module VirMat.Core.FlexMicro (
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.IntSet as IS
+import Data.Kind (Type)
 import qualified Data.List as L
 import Data.Maybe
 import Data.Vector (Vector)
@@ -44,7 +45,7 @@ class FlexMicroBuilder v where
     the values are store separately in order to allow fast update of values. The topology is
     represented by @MicroGraph@.
     -}
-    data FlexMicro v a :: *
+    data FlexMicro v a :: Type
 
     {- | This function converts a Voronoi microstructure (convex polygonal geomerty)
     to flexible microstructure where arbitrary shape of grains are allowed.
