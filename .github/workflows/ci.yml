@@ -1,0 +1,21 @@
+name: CI
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - uses: cachix/install-nix-action@v25
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+    - name: Check formatting
+      run: nix fmt -- --ci
+    - name: Build
+      run: nix develop --command stack build --system-ghc

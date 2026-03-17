@@ -1,0 +1,49 @@
+{
+  description = "VirMat - 3D Microstructure Generator";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { self, nixpkgs, flake-utils, treefmt-nix }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs { inherit system; };
+
+        treefmtWrapper = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
+
+        haskellStack = pkgs.haskellPackages.ghc;
+
+        hls = pkgs.haskell-language-server;
+
+      in
+      {
+        formatter = treefmtWrapper.config.build.wrapper;
+
+        devShells.default = pkgs.mkShell {
+          buildInputs = [
+            haskellStack
+            pkgs.stack
+            pkgs.cabal-install
+            hls
+            pkgs.pkg-config
+            pkgs.zlib
+            pkgs.clang
+            treefmtWrapper.config.build.wrapper
+            pkgs.nixpkgs-fmt
+            pkgs.lefthook
+          ];
+
+          shellHook = ''
+            echo "VirMat Dev Environment Loaded"
+            echo "GHC version: $(ghc --version)"
+          '';
+        };
+      }
+    );
+}

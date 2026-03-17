@@ -1,89 +1,80 @@
-Name:                VirMat
-Version:             0.4.1
-License:             GPL-3
-License-file:        LICENSE
-Author:              Edgar Gomes de Araujo
-Maintainer:          Edgar Gomes de Araujo <talktoedgar@gmail.com>
-Homepage:
-Stability:           Experimental
-Synopsis:            3D Microstructure Generator
-Description:
-    Creates virtual microstructure in 3 dimesions.
-Cabal-version:       >= 1.8
-Build-type:          Simple
-Category:            Data, Math
+name:          VirMat
+version:       0.4.1
+license:       GPL-3
+license-file:  LICENSE
+author:        Edgar Gomes de Araujo
+maintainer:    Edgar Gomes de Araujo <talktoedgar@gmail.com>
+homepage:
+stability:     Experimental
+synopsis:      3D Microstructure Generator
+description:   Creates virtual microstructure in 3 dimesions.
+cabal-version: >=1.8
+build-type:    Simple
+category:      Data, Math
 
-Flag generator
-    Description:        Build the exectable using command line.
-    Default:            True
+flag generator
+  description: Build the exectable using command line.
+  default:     True
 
-Executable virmatgen
-    hs-source-dirs:     src
-    main-is:            Main.hs
-    ghc-options:        -Wall
-                        -O3
-                        -threaded
-                        -rtsopts
-                        -auto-all
-                        -caf-all
+executable virmatgen
+  hs-source-dirs: src
+  main-is:        Main.hs
+  ghc-options:    -Wall -O3 -threaded -rtsopts -auto-all -caf-all
+  build-depends:
+      base                    >=4    && <5
+    , containers              >=0.5
+    , DeUni                   >=0.3
+    , hammer                  >=0.3
+    , linear-vect             >=0.2
+    , mersenne-random-pure64  >=0.2
+    , mtl                     >=2.1
+    , optparse-applicative    >=0.7
+    , random                  >=1.2
+    , random-fu               >=0.2
+    , sledge                  >=0.3
+    , SubZero                 >=0.1
+    , transformers            >=0.3
+    , unordered-containers    >=0.2
+    , vector                  >=0.10
+    , VirMat
 
-    Build-Depends:      VirMat
-                      , base                   == 4.*
-                      , hammer                 >= 0.3
-                      , sledge                 >= 0.3
-                      , DeUni                  >= 0.3
-                      , containers             >= 0.5
-                      , unordered-containers   >= 0.2
-                      , vector                 >= 0.10
-                      , SubZero                >= 0.1
-                      , mersenne-random-pure64 >= 0.2
-                      , random-source          >= 0.3
-                      , random-fu              >= 0.2
-                      , transformers           >= 0.3
-                      , mtl                    >= 2.1
-                      , optparse-applicative   >= 0.7
-    if flag(generator)
-      Buildable:        True
-    else
-      Buildable:        False
+  if flag(generator)
+    buildable: True
+
+  else
+    buildable: False
 
 library
-    ghc-options: -Wall
-                 -fwarn-tabs
-                 -funbox-strict-fields
-                 -O2
-    hs-source-dirs:     src
-    Build-Depends:      base                   == 4.*
-                      , hammer                 >= 0.3
-                      , sledge                 >= 0.3
-                      , DeUni                  >= 0.3
-                      , containers             >= 0.5
-                      , unordered-containers   >= 0.2
-                      , vector                 >= 0.10
-                      , SubZero                >= 0.1
-                      , mersenne-random-pure64 >= 0.2
-                      , random-source          >= 0.3
-                      , random-fu              >= 0.2
-                      , transformers           >= 0.3
-                      , mtl                    >= 2.1
-                      , linear-vect            >= 0.2
+  ghc-options:     -Wall -fwarn-tabs -funbox-strict-fields -O2
+  hs-source-dirs:  src
+  build-depends:
+      base                    >=4    && <5
+    , containers              >=0.5
+    , DeUni                   >=0.3
+    , hammer                  >=0.3
+    , linear-vect             >=0.2
+    , mersenne-random-pure64  >=0.2
+    , mtl                     >=2.1
+    , random                  >=1.2
+    , random-fu               >=0.2
+    , sledge                  >=0.3
+    , SubZero                 >=0.1
+    , transformers            >=0.3
+    , unordered-containers    >=0.2
+    , vector                  >=0.10
 
-    Exposed-modules:    VirMat.Run2D
-                        VirMat.Run3D
-                        VirMat.Types
-
-                        VirMat.Core.Packer
-                        VirMat.Core.Sampling
-                        VirMat.Core.VoronoiMicro
-                        VirMat.Core.FlexMicro
-
-                        VirMat.Distributions.GrainSize.GrainDistributionGenerator
-                        VirMat.Distributions.GrainSize.GrainQuery
-                        VirMat.Distributions.Texture.ODFSampling
-
-                        VirMat.IO.Export.ANG.RasterEngine
-                        VirMat.IO.Export.Types
-
-                        VirMat.IO.Import.Types
-
-                        VirMat.PhaseTrans
+  exposed-modules:
+    VirMat.Core.FlexMicro
+    VirMat.Core.Packer
+    VirMat.Core.Sampling
+    VirMat.Core.VoronoiMicro
+    VirMat.Distributions.GrainSize.GrainDistributionGenerator
+    VirMat.Distributions.GrainSize.GrainQuery
+    VirMat.Distributions.Texture.ODFSampling
+    VirMat.IO.Export.ANG.RasterEngine
+    VirMat.IO.Export.Types
+    VirMat.IO.Import.Types
+    VirMat.PhaseTrans
+    VirMat.Run2D
+    VirMat.Run3D
+    VirMat.Types
