@@ -8,7 +8,7 @@ VirMat is a Haskell monorepo for generating 2D/3D virtual microstructures for me
 
 ## Build & Development
 
-**Prerequisites:** Nix (provides GHC 9.6.x, Stack, Cabal, HLS, Lefthook, formatters).
+**Prerequisites:** Nix (provides GHC 9.10.x, Stack, Cabal, HLS, Lefthook, formatters).
 
 ```bash
 nix develop                                    # Enter dev shell
@@ -44,7 +44,7 @@ nix fmt -- --ci            # Check formatting without modifying (CI mode)
 
 ## Monorepo Structure
 
-All packages are git submodules under `packages/`. The root `stack.yaml` (resolver: lts-22.11, `allow-newer: true`) ties them together.
+All packages are git submodules under `packages/`. The root `stack.yaml` (resolver: lts-24.34, `allow-newer: true`) ties them together.
 
 ### Package Dependency Graph
 
