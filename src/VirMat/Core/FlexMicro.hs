@@ -255,8 +255,6 @@ mkMesh es fc = do
 sortEdges :: (SeqSeg a) => Vector a -> Maybe (Vector a)
 sortEdges = getOneLoop . sortSegs
 
-instance SeqComp Int
-
 instance (SeqComp a) => SeqSeg (Vector a) where
     type SeqUnit (Vector a) = a
     getSeqHead = V.head

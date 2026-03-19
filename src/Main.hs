@@ -20,11 +20,6 @@ import VirMat.Run2D
 import VirMat.Run3D
 import VirMat.Types
 
-import Debug.Trace
-
-debug :: (Show a) => String -> a -> a
-debug s x = trace (s ++ show x) x
-
 main :: IO ()
 main = do
     jobReq <- getJob
