@@ -63,18 +63,18 @@ FlexMicro (Subdivision)      -- Core.FlexMicro  (Loop subdivision surfaces via S
 
 ## Packages
 
-VirMat is organized as a multi-package Haskell project. The root package orchestrates the generation pipeline, while specialized functionality lives in git submodule packages under `packages/`:
+VirMat is organized as a multi-package Haskell project. The root package orchestrates the generation pipeline, while specialized functionality is pulled from several core libraries via `cabal.project` (previously git submodules):
 
 | Package | Description |
 |---------|-------------|
-| [DeUni](packages/DeUni) | 3D Convex Hull and Delaunay triangulation using the Marriage-Before-Conquer (MBC) / DeWall algorithm |
-| [hammer](packages/hammer) | Metallurgical utilities: `MicroGraph` topology, grain finding, sparse matrices, and VTK generation |
-| [sledge](packages/sledge) | Crystallographic orientations, symmetries, Bingham distributions, IPF coloring, and EBSD file formats (ANG, CTF) |
-| [linear-vect](packages/linear-vect) | Low-dimensional linear algebra: `Vec2`, `Vec3`, `Vec4`, matrices, quaternions |
-| [queryforest](packages/queryforest) | Spatial indexing and nearest-neighbor search (KD-trees, VP-trees) |
-| [SubZero](packages/SubZero) | Subdivision surfaces for 1D (lines/curves) and 2D (triangular meshes, Loop scheme) |
-| [VTK](packages/VTK) | Library for generating VTK XML files (`.vtu`, `.vti`, etc.) |
-| [mcl](packages/mcl) | Markov Cluster Algorithm (MCL) for graph clustering |
+| [DeUni](https://github.com/lostbean/DeUni) | 3D Convex Hull and Delaunay triangulation using the Marriage-Before-Conquer (MBC) / DeWall algorithm |
+| [hammer](https://github.com/lostbean/hammer) | Metallurgical utilities: `MicroGraph` topology, grain finding, sparse matrices, and VTK generation |
+| [sledge](https://github.com/lostbean/sledge) | Crystallographic orientations, symmetries, Bingham distributions, IPF coloring, and EBSD file formats (ANG, CTF) |
+| [linear-vect](https://github.com/lostbean/linear-vect) | Low-dimensional linear algebra: `Vec2`, `Vec3`, `Vec4`, matrices, quaternions |
+| [queryforest](https://github.com/lostbean/queryforest) | Spatial indexing and nearest-neighbor search (KD-trees, VP-trees) |
+| [SubZero](https://github.com/lostbean/SubZero) | Subdivision surfaces for 1D (lines/curves) and 2D (triangular meshes, Loop scheme) |
+| [VTK](https://github.com/lostbean/VTK) | Library for generating VTK XML files (`.vtu`, `.vti`, etc.) |
+| [mcl](https://github.com/lostbean/mcl) | Markov Cluster Algorithm (MCL) for graph clustering |
 
 ## Key Modules and Source Files
 
@@ -123,16 +123,29 @@ VirMat is organized as a multi-package Haskell project. The root package orchest
 
 ### Prerequisites
 
-- [Haskell Stack](https://docs.haskellstack.org/en/stable/) (resolver: `lts-22.11`, GHC 9.6.x)
+- [Cabal](https://www.haskell.org/cabal/) or [Stack](https://docs.haskellstack.org/en/stable/)
+- GHC 9.10.x (recommended)
+
+### With Cabal
+
+```bash
+git clone <repo-url>
+cd VirMat
+
+# Build the entire project and dependencies
+cabal build
+
+# Run the executable
+cabal run virmatgen -- --help
+```
 
 ### With Stack
 
 ```bash
-# Clone with submodules
-git clone --recurse-submodules <repo-url>
+git clone <repo-url>
 cd VirMat
 
-# Build the entire project (root + all packages/)
+# Build the entire project
 stack build
 
 # Run the executable
@@ -147,9 +160,27 @@ The project provides a Nix flake for a reproducible development environment:
 # Enter the dev shell (provides GHC, Stack, Cabal, HLS, zlib, clang, treefmt)
 nix develop
 
-# Then build with Stack as usual
-stack build
+# Then build with Cabal or Stack as usual
+cabal build
 ```
+
+## Testing
+
+VirMat includes a comprehensive test suite using `hspec` and `QuickCheck`.
+
+```bash
+# Run all tests
+cabal test
+
+# Run tests with coverage report
+cabal test --enable-coverage
+```
+
+The test suite covers:
+- **Core.Packer**: Force models and bounding box constraints.
+- **Core.Sampling**: Statistical distribution area, mean, and composition.
+- **Distributions.GrainSize**: Bounding box geometry and volumetric consistency.
+- **GrainQuery**: Geometric primitives (triangle area, tetrahedron volume).
 
 ## CLI Usage
 
@@ -216,8 +247,9 @@ stack exec virmatgen -- --2d --n2d 100 --packed \
 
 `base`, `containers`, `mersenne-random-pure64`, `mtl`, `optparse-applicative`, `random`, `random-fu`, `transformers`, `unordered-containers`, `vector`
 
-### Internal Packages (git submodules)
+### Internal Packages
 
+These are managed via `cabal.project` and `stack.yaml` as source-repository-packages:
 `DeUni`, `hammer`, `sledge`, `linear-vect`, `SubZero`, `queryforest`, `VTK`, `mcl`
 
 ## Author

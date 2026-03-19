@@ -4,17 +4,25 @@ allow-newer: true
 
 packages:
 - '.'
-- packages/hammer/
-- packages/sledge/
-- packages/queryforest/
-- packages/DeUni/
-- packages/mcl/
-- packages/SubZero/
-- packages/VTK/
-- packages/linear-vect/
 
 extra-deps:
 - mersenne-random-pure64-0.2.0.5@sha256:8f98b614aeed639713f01155e912aa6ad117073d0863f5783d1577764fd85b1a,2426
+- git: https://github.com/lostbean/sledge.git
+  commit: 5998c45ab0e0517452fad8c7eeb58d44685921a2
+- git: https://github.com/lostbean/hammer.git
+  commit: 7d97f903e0d9488efd9078bff3ebfb4a3760629e
+- git: https://github.com/lostbean/queryforest.git
+  commit: f8465879c5aabc8462a06d91729d8049ded97f33
+- git: https://github.com/lostbean/SubZero.git
+  commit: 3120e0cea84a0c1b53e4bfa3f4087fcf09f864e7
+- git: https://github.com/lostbean/DeUni.git
+  commit: e8ccb59efd09f84753be660d21b192f5ced4fec5
+- git: https://github.com/lostbean/VTK.git
+  commit: 1c21f6928c788c7c5e248d1429332cb0240a3e22
+- git: https://github.com/lostbean/mcl.git
+  commit: f72469c6fb7153f38d3ca80fdeb4e03298b925b4
+- git: https://github.com/lostbean/linear-vect.git
+  commit: e2438fbc2e5f3bbc56454acf9173b7505eebcd3d
 
 nix:
   enable: false
