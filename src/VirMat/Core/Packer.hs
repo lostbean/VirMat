@@ -8,6 +8,8 @@ module VirMat.Core.Packer (
     runPacker2D,
     setForce,
     setDisp,
+    force,
+    Packer (..),
 ) where
 
 import Data.IntMap (IntMap)

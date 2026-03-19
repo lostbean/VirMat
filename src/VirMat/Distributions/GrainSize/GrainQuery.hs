@@ -5,9 +5,9 @@
 {-# LANGUAGE TypeOperators #-}
 
 module VirMat.Distributions.GrainSize.GrainQuery (
-    Volume (getVolume),
-    Area (getArea),
-    Length (getLength),
+    Volume (..),
+    Area (..),
+    Length (..),
     GrainMorph (
         grainCenter,
         grainLength,
@@ -17,6 +17,8 @@ module VirMat.Distributions.GrainSize.GrainQuery (
     ),
     add3DGrainMorph,
     add2DGrainMorph,
+    triangleArea,
+    tetrahedronVolume,
 ) where
 
 import qualified Data.HashSet as HS

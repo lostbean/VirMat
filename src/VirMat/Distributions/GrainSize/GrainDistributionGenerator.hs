@@ -12,7 +12,7 @@ module VirMat.Distributions.GrainSize.GrainDistributionGenerator (
     genGrainDistributionByBox,
     DistributedPoints (..),
     Ratio,
-    Extent,
+    Extent (..),
     defRatio,
     calcBox,
     boxDim,

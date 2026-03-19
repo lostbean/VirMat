@@ -94,3 +94,25 @@ library
     VirMat.Run2D
     VirMat.Run3D
     VirMat.Types
+
+test-suite spec
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Spec.hs
+  other-modules:
+    DistributionGeneratorSpec
+    GrainQuerySpec
+    PackerSpec
+    SamplingSpec
+
+  build-depends:
+      base
+    , DeUni
+    , hspec
+    , linear-vect
+    , QuickCheck
+    , vector
+    , VirMat
+
+  build-tool-depends: hspec-discover:hspec-discover
+  ghc-options:        -Wall
