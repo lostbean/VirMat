@@ -1,6 +1,5 @@
 module SamplingSpec (spec) where
 
-import qualified Data.Vector as V
 import Test.Hspec
 import Test.QuickCheck
 import VirMat.Core.Sampling

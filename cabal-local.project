@@ -1,0 +1,12 @@
+packages:
+  .
+  ../sledge
+  ../hammer
+  ../queryforest
+  ../SubZero
+  ../DeUni
+  ../VTK
+  ../mcl
+  ../linear-vect
+
+allow-newer: *:base, *:mtl, *:base-orphans, *:template-haskell, *:th-abstraction

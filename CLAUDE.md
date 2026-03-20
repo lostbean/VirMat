@@ -19,6 +19,17 @@ stack exec virmatgen -- --help                 # Run the CLI executable
 
 CI runs: `nix fmt -- --ci` (format check) then `nix develop --command stack build --system-ghc`.
 
+## CI & Quality Checks
+
+```bash
+bash scripts/ci.sh             # Full CI: format check + build with -Wall -Werror + tests
+bash scripts/pre-commit.sh     # Apply formatting to all files
+```
+
+CI runs format check, compilation with `-Wall -Werror` (fail on warnings), and tests.
+
+Local scripts use `cabal-local.project` which references sibling directories (`../sledge`, `../hammer`, etc.). GitHub Actions CI uses the standard `cabal.project` which fetches deps from GitHub.
+
 ## Testing
 
 Tests are gated behind cabal flags (default: off). To run:

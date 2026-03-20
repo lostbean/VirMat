@@ -2,7 +2,6 @@ module GrainQuerySpec (spec) where
 
 import Linear.Vect
 import Test.Hspec
-import Test.QuickCheck
 import VirMat.Distributions.GrainSize.GrainQuery
 
 spec :: Spec

@@ -1,9 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module PackerSpec (spec) where
 
-import qualified Data.Vector as V
 import DeUni.DeWall
 import Linear.Vect
 import Test.Hspec
