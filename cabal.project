@@ -4,39 +4,39 @@ allow-newer: *:base, *:mtl, *:base-orphans, *:template-haskell, *:th-abstraction
 source-repository-package
   type: git
   location: https://github.com/lostbean/sledge.git
-  tag: 5998c45ab0e0517452fad8c7eeb58d44685921a2
+  tag: f97e7ee499aa6f79311f57fd510d33ceed719265
 
 source-repository-package
   type: git
   location: https://github.com/lostbean/hammer.git
-  tag: 7d97f903e0d9488efd9078bff3ebfb4a3760629e
+  tag: 48a4d06bb698e9fe360aef968ed08f376b5aad9f
 
 source-repository-package
   type: git
   location: https://github.com/lostbean/queryforest.git
-  tag: ce8e99683d0e6a1c18df9df9bb13e8194f7baff8
+  tag: ea36c8495a18e5641f9e63380f6c90d03a2768d9
 
 source-repository-package
   type: git
   location: https://github.com/lostbean/SubZero.git
-  tag: 3120e0cea84a0c1b53e4bfa3f4087fcf09f864e7
+  tag: 5030dd00728acb1d321a12e066ba0b76f1e238d0
 
 source-repository-package
   type: git
   location: https://github.com/lostbean/DeUni.git
-  tag: e8ccb59efd09f84753be660d21b192f5ced4fec5
+  tag: d764da771a04bd27ac42c1743b4020a3d70b1aab
 
 source-repository-package
   type: git
   location: https://github.com/lostbean/VTK.git
-  tag: 1c21f6928c788c7c5e248d1429332cb0240a3e22
+  tag: 69cbb2281747fa291522ba12c24015879682a6a2
 
 source-repository-package
   type: git
   location: https://github.com/lostbean/mcl.git
-  tag: f72469c6fb7153f38d3ca80fdeb4e03298b925b4
+  tag: ae6895e57c5606fd89e1dc10b1dc0ead9afecda5
 
 source-repository-package
   type: git
   location: https://github.com/lostbean/linear-vect.git
-  tag: e2438fbc2e5f3bbc56454acf9173b7505eebcd3d
+  tag: 5391c2ef7b7bcfaf5aa66e7be3102601125d4499
